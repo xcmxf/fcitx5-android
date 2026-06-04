@@ -35,7 +35,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build release APK
-        run: ./gradlew :app:assembleRelease
+        run: ./gradlew :app:assembleRelease -PbuildABI=x86_64
 
       - name: Upload app
         uses: actions/upload-artifact@v6
