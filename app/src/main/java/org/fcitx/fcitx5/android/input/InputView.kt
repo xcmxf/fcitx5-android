@@ -370,29 +370,34 @@ class InputView(
         }
     }
 
-    private val floatingKeyboardResizeListener = OnTouchListener { _, event ->
+    private fun floatingKeyboardResizeListener(horizontalSign: Int) = OnTouchListener { _, event ->
         if (!floatingKeyboardEnabled) return@OnTouchListener false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
                 showFloatingEditControls()
                 floatingDragStartRawX = event.rawX
+                floatingDragStartKeyboardX = floatingKeyboardX
+                floatingDragStartKeyboardY = floatingKeyboardY
                 floatingResizeStartWidth = keyboardView.width
                 true
             }
 
             MotionEvent.ACTION_MOVE -> {
                 val parentWidth = width.takeIf { it > 0 } ?: return@OnTouchListener true
-                val delta = if (layoutDirection == LAYOUT_DIRECTION_RTL) {
-                    floatingDragStartRawX - event.rawX
-                } else {
-                    event.rawX - floatingDragStartRawX
-                }
+                val delta = horizontalSign * (event.rawX - floatingDragStartRawX)
                 val newWidth = (floatingResizeStartWidth + delta).roundToInt()
                 val percent = (newWidth * 100f / parentWidth)
                     .roundToInt()
                     .coerceIn(MIN_FLOATING_KEYBOARD_WIDTH_PERCENT, MAX_FLOATING_KEYBOARD_WIDTH_PERCENT)
+                val newWidthPx = parentWidth * percent / 100
                 activeFloatingKeyboardWidthPercent.setValue(percent)
                 updateKeyboardSize()
+                val newX = if (horizontalSign < 0) {
+                    floatingDragStartKeyboardX + floatingResizeStartWidth - newWidthPx
+                } else {
+                    floatingDragStartKeyboardX
+                }
+                updateFloatingKeyboardPosition(newX, floatingDragStartKeyboardY, persist = true)
                 true
             }
 
@@ -487,7 +492,7 @@ class InputView(
 
         bottomPaddingSpace.setOnTouchListener(floatingKeyboardDragListener)
         floatingMoveHandle.setOnTouchListener(floatingKeyboardDragListener)
-        resizeHandle.setOnTouchListener(floatingKeyboardResizeListener)
+        resizeHandle.setOnTouchListener(floatingKeyboardResizeListener(1))
         kawaiiBar.view.setOnTouchListener(floatingKeyboardDragListener)
 
         updateKeyboardSize()
@@ -658,20 +663,21 @@ class InputView(
         val handleSize = dp(FLOATING_CORNER_HANDLE_SIZE_DP)
         val outset = dp(FLOATING_EDIT_OVERLAY_OUTSET_DP)
         val handles = arrayOf(
-            FloatingCornerHandleView(context, -1, -1) to FrameLayout.LayoutParams(handleSize, handleSize).apply {
+            Triple(FloatingCornerHandleView(context, -1, -1), -1, FrameLayout.LayoutParams(handleSize, handleSize).apply {
                 gravity = Gravity.START or Gravity.TOP
-            },
-            FloatingCornerHandleView(context, 1, -1) to FrameLayout.LayoutParams(handleSize, handleSize).apply {
+            }),
+            Triple(FloatingCornerHandleView(context, 1, -1), 1, FrameLayout.LayoutParams(handleSize, handleSize).apply {
                 gravity = Gravity.END or Gravity.TOP
-            },
-            FloatingCornerHandleView(context, -1, 1) to FrameLayout.LayoutParams(handleSize, handleSize).apply {
+            }),
+            Triple(FloatingCornerHandleView(context, -1, 1), -1, FrameLayout.LayoutParams(handleSize, handleSize).apply {
                 gravity = Gravity.START or Gravity.BOTTOM
-            },
-            FloatingCornerHandleView(context, 1, 1) to FrameLayout.LayoutParams(handleSize, handleSize).apply {
+            }),
+            Triple(FloatingCornerHandleView(context, 1, 1), 1, FrameLayout.LayoutParams(handleSize, handleSize).apply {
                 gravity = Gravity.END or Gravity.BOTTOM
-            },
+            }),
         )
-        handles.forEach { (view, params) ->
+        handles.forEach { (view, horizontalSign, params) ->
+            view.setOnTouchListener(floatingKeyboardResizeListener(horizontalSign))
             floatingEditOverlay.addView(view, params)
         }
         floatingEditOverlay.addView(
