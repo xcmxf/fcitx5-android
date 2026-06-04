@@ -542,7 +542,7 @@ class InputView(
             leftPaddingSpace.visibility = GONE
             rightPaddingSpace.visibility = GONE
             floatingMoveHandle.visibility = VISIBLE
-            resizeHandle.visibility = VISIBLE
+            resizeHandle.visibility = GONE
             windowManager.view.updateLayoutParams<LayoutParams> {
                 startToEnd = unset
                 endToStart = unset
@@ -691,6 +691,7 @@ class InputView(
     }
 
     private fun updateFloatingEditOverlaySize() {
+        if (floatingEditOverlay.parent == null) return
         val outset = dp(FLOATING_EDIT_OVERLAY_OUTSET_DP)
         floatingEditOverlay.updateLayoutParams<LayoutParams> {
             width = if (floatingKeyboardEnabled) {
