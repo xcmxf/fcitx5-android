@@ -36,9 +36,9 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val editorInfoInspector = bool("editor_info_inspector", false)
         val needNotifications = bool("need_notifications", true)
         val floatingKeyboardXRatio = float("floating_keyboard_x_ratio", 0.5f)
-        val floatingKeyboardYRatio = float("floating_keyboard_y_ratio", 1f)
+        val floatingKeyboardYRatio = float("floating_keyboard_y_ratio", 0.48f)
         val floatingKeyboardXRatioLandscape = float("floating_keyboard_x_ratio_landscape", 0.5f)
-        val floatingKeyboardYRatioLandscape = float("floating_keyboard_y_ratio_landscape", 1f)
+        val floatingKeyboardYRatioLandscape = float("floating_keyboard_y_ratio_landscape", 0.55f)
     }
 
     inner class Advanced : ManagedPreferenceCategory(R.string.advanced, sharedPreferences) {

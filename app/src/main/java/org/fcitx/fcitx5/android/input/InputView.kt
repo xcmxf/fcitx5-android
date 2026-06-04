@@ -7,11 +7,13 @@ package org.fcitx.fcitx5.android.input
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import android.graphics.Outline
 import android.graphics.Rect
 import android.os.Build
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
+import android.view.ViewOutlineProvider
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsResponse
 import android.widget.ImageView
@@ -83,6 +85,8 @@ class InputView(
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
         private const val FLOATING_RESIZE_HANDLE_SIZE_DP = 40
+        private const val FLOATING_KEYBOARD_CORNER_RADIUS_DP = 28
+        private const val FLOATING_KEYBOARD_ELEVATION_DP = 12
     }
 
     private val keyBorder by ThemeManager.prefs.keyBorder
@@ -331,11 +335,22 @@ class InputView(
         customBackground.imageDrawable = theme.backgroundDrawable(keyBorder)
 
         keyboardView = constraintLayout {
+            background = theme.backgroundDrawable(keyBorder)
+            outlineProvider = object : ViewOutlineProvider() {
+                override fun getOutline(view: View, outline: Outline) {
+                    val radius = if (floatingKeyboardEnabled) {
+                        dp(FLOATING_KEYBOARD_CORNER_RADIUS_DP).toFloat()
+                    } else {
+                        0f
+                    }
+                    outline.setRoundRect(0, 0, view.width, view.height, radius)
+                }
+            }
             // allow MotionEvent to be delivered to keyboard while pressing on padding views.
             // although it should be default for apps targeting Honeycomb (3.0, API 11) and higher,
             // but it's not the case on some devices ... just set it here
             isMotionEventSplittingEnabled = true
-            add(customBackground, lParams {
+            add(customBackground, lParams(matchParent, matchParent) {
                 centerVertically()
                 centerHorizontally()
             })
@@ -373,6 +388,7 @@ class InputView(
 
         bottomPaddingSpace.setOnTouchListener(floatingKeyboardDragListener)
         resizeHandle.setOnTouchListener(floatingKeyboardResizeListener)
+        kawaiiBar.view.setOnTouchListener(floatingKeyboardDragListener)
 
         updateKeyboardSize()
 
@@ -507,10 +523,21 @@ class InputView(
         keyboardView.translationX = 0f
         keyboardView.translationY = 0f
         updateKeyboardSize()
+        updateFloatingKeyboardChrome()
         kawaiiBar.updateFloatingKeyboardButton()
         if (floatingKeyboardEnabled) {
             keyboardView.post { restoreFloatingKeyboardPosition() }
         }
+    }
+
+    private fun updateFloatingKeyboardChrome() {
+        keyboardView.clipToOutline = floatingKeyboardEnabled
+        keyboardView.elevation = if (floatingKeyboardEnabled) {
+            dp(FLOATING_KEYBOARD_ELEVATION_DP).toFloat()
+        } else {
+            0f
+        }
+        keyboardView.invalidateOutline()
     }
 
     private fun restoreFloatingKeyboardPosition() {
