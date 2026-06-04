@@ -102,6 +102,7 @@ class InputView(
         private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO = 0.48f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO_LANDSCAPE = 0.55f
+        private const val FLOATING_EDIT_CONTROLS_HIDE_DELAY_MS = 3000L
     }
 
     private val keyBorder by ThemeManager.prefs.keyBorder
@@ -278,7 +279,12 @@ class InputView(
     private var floatingDragStartKeyboardX = 0f
     private var floatingDragStartKeyboardY = 0f
     private var floatingResizeStartWidth = 0
+    private var floatingEditControlsVisible = false
     private val inputViewLocation = intArrayOf(0, 0)
+    private val hideFloatingEditControlsRunnable = Runnable {
+        floatingEditControlsVisible = false
+        updateFloatingEditOverlayPosition()
+    }
 
     private inner class FloatingCornerHandleView(
         context: android.content.Context,
@@ -319,6 +325,7 @@ class InputView(
         if (!floatingKeyboardEnabled) return@OnTouchListener false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                showFloatingEditControls()
                 floatingDragStartRawX = event.rawX
                 floatingDragStartRawY = event.rawY
                 floatingDragStartKeyboardX = floatingKeyboardX
@@ -335,7 +342,10 @@ class InputView(
                 true
             }
 
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> true
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                scheduleHideFloatingEditControls()
+                true
+            }
             else -> false
         }
     }
@@ -344,6 +354,7 @@ class InputView(
         if (!floatingKeyboardEnabled) return@OnTouchListener false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                showFloatingEditControls()
                 floatingDragStartRawX = event.rawX
                 floatingResizeStartWidth = keyboardView.width
                 true
@@ -365,7 +376,10 @@ class InputView(
                 true
             }
 
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> true
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                scheduleHideFloatingEditControls()
+                true
+            }
             else -> false
         }
     }
@@ -600,7 +614,11 @@ class InputView(
         } else {
             0f
         }
-        floatingEditOverlay.visibility = if (floatingKeyboardEnabled) VISIBLE else GONE
+        if (!floatingKeyboardEnabled) {
+            floatingEditControlsVisible = false
+            removeCallbacks(hideFloatingEditControlsRunnable)
+        }
+        updateFloatingEditOverlayPosition()
         keyboardView.invalidateOutline()
     }
 
@@ -652,10 +670,24 @@ class InputView(
 
     private fun updateFloatingEditOverlayPosition() {
         val outset = dp(FLOATING_EDIT_OVERLAY_OUTSET_DP).toFloat()
-        floatingEditOverlay.visibility = if (floatingKeyboardEnabled) VISIBLE else GONE
+        floatingEditOverlay.visibility =
+            if (floatingKeyboardEnabled && floatingEditControlsVisible) VISIBLE else GONE
         floatingEditOverlay.translationX = floatingKeyboardX - outset
         floatingEditOverlay.translationY = floatingKeyboardY - outset
         floatingEditOverlay.elevation = keyboardView.elevation + 1f
+    }
+
+    private fun showFloatingEditControls() {
+        if (!floatingKeyboardEnabled) return
+        removeCallbacks(hideFloatingEditControlsRunnable)
+        floatingEditControlsVisible = true
+        updateFloatingEditOverlaySize()
+        updateFloatingEditOverlayPosition()
+    }
+
+    private fun scheduleHideFloatingEditControls() {
+        removeCallbacks(hideFloatingEditControlsRunnable)
+        postDelayed(hideFloatingEditControlsRunnable, FLOATING_EDIT_CONTROLS_HIDE_DELAY_MS)
     }
 
     private fun resetFloatingKeyboardLayout() {
