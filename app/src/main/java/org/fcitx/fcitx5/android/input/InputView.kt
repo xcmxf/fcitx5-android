@@ -7,16 +7,22 @@ package org.fcitx.fcitx5.android.input
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
+import android.graphics.Canvas
 import android.graphics.Outline
+import android.graphics.Paint
 import android.graphics.Rect
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.view.ViewOutlineProvider
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InlineSuggestionsResponse
+import android.widget.FrameLayout
 import android.widget.ImageView
+import android.widget.TextView
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
 import androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
@@ -44,6 +50,7 @@ import org.fcitx.fcitx5.android.input.picker.symbolPicker
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
 import org.fcitx.fcitx5.android.input.preedit.PreeditComponent
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
+import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.unset
 import org.mechdancer.dependency.DynamicScope
 import org.mechdancer.dependency.manager.wrapToUniqueComponent
@@ -64,6 +71,7 @@ import splitties.views.dsl.constraintlayout.topOfParent
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.imageView
 import splitties.views.dsl.core.matchParent
+import splitties.views.dsl.core.textView
 import splitties.views.dsl.core.view
 import splitties.views.dsl.core.withTheme
 import splitties.views.dsl.core.wrapContent
@@ -87,6 +95,13 @@ class InputView(
         private const val FLOATING_RESIZE_HANDLE_SIZE_DP = 40
         private const val FLOATING_KEYBOARD_CORNER_RADIUS_DP = 28
         private const val FLOATING_KEYBOARD_ELEVATION_DP = 12
+        private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 18
+        private const val FLOATING_CORNER_HANDLE_SIZE_DP = 46
+        private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
+        private const val DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT = 80
+        private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
+        private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO = 0.48f
+        private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO_LANDSCAPE = 0.55f
     }
 
     private val keyBorder by ThemeManager.prefs.keyBorder
@@ -114,6 +129,24 @@ class InputView(
         scaleType = ImageView.ScaleType.CENTER
         alpha = 0.72f
         contentDescription = context.getString(R.string.resize_floating_keyboard)
+    }
+    private val floatingEditOverlay = view(::FrameLayout) {
+        clipChildren = false
+        clipToPadding = false
+        visibility = GONE
+    }
+    private val resetFloatingKeyboardButton = textView {
+        text = context.getString(R.string.reset)
+        gravity = Gravity.CENTER
+        setTextColor(theme.altKeyTextColor)
+        textSize = 14f
+        includeFontPadding = false
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(18).toFloat()
+            setColor(theme.altKeyBackgroundColor.alpha(0.86f))
+        }
+        setOnClickListener { resetFloatingKeyboardLayout() }
     }
 
     private val scope = DynamicScope()
@@ -246,6 +279,30 @@ class InputView(
     private var floatingDragStartKeyboardY = 0f
     private var floatingResizeStartWidth = 0
     private val inputViewLocation = intArrayOf(0, 0)
+
+    private inner class FloatingCornerHandleView(
+        context: android.content.Context,
+        private val horizontalSign: Int,
+        private val verticalSign: Int
+    ) : View(context) {
+        private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = theme.genericActiveBackgroundColor
+            style = Paint.Style.STROKE
+            strokeWidth = dp(FLOATING_CORNER_HANDLE_STROKE_DP).toFloat()
+            strokeCap = Paint.Cap.ROUND
+        }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val inset = paint.strokeWidth / 2f
+            val startX = if (horizontalSign < 0) inset else width - inset
+            val endX = if (horizontalSign < 0) width * 0.58f else width * 0.42f
+            val startY = if (verticalSign < 0) inset else height - inset
+            val endY = if (verticalSign < 0) height * 0.58f else height * 0.42f
+            canvas.drawLine(startX, startY, endX, startY, paint)
+            canvas.drawLine(startX, startY, startX, endY, paint)
+        }
+    }
 
     @Keep
     private val onKeyboardSizeChangeListener = ManagedPreferenceProvider.OnChangeListener { key ->
@@ -407,6 +464,11 @@ class InputView(
                 bottomOfParent()
             })
         }
+        add(floatingEditOverlay, lParams(floatingKeyboardWidthPx, wrapContent) {
+            startOfParent()
+            topOfParent()
+        })
+        setupFloatingEditOverlay()
         post { applyKeyboardMode() }
         add(popup.root, lParams(matchParent, matchParent) {
             centerVertically()
@@ -481,6 +543,7 @@ class InputView(
                     width = floatingKeyboardWidthPx
                 }
             }
+            updateFloatingEditOverlaySize()
             keyboardView.post {
                 restoreFloatingKeyboardPosition()
             }
@@ -537,7 +600,74 @@ class InputView(
         } else {
             0f
         }
+        floatingEditOverlay.visibility = if (floatingKeyboardEnabled) VISIBLE else GONE
         keyboardView.invalidateOutline()
+    }
+
+    private fun setupFloatingEditOverlay() {
+        val handleSize = dp(FLOATING_CORNER_HANDLE_SIZE_DP)
+        val outset = dp(FLOATING_EDIT_OVERLAY_OUTSET_DP)
+        val handles = arrayOf(
+            FloatingCornerHandleView(context, -1, -1) to FrameLayout.LayoutParams(handleSize, handleSize).apply {
+                gravity = Gravity.START or Gravity.TOP
+            },
+            FloatingCornerHandleView(context, 1, -1) to FrameLayout.LayoutParams(handleSize, handleSize).apply {
+                gravity = Gravity.END or Gravity.TOP
+            },
+            FloatingCornerHandleView(context, -1, 1) to FrameLayout.LayoutParams(handleSize, handleSize).apply {
+                gravity = Gravity.START or Gravity.BOTTOM
+            },
+            FloatingCornerHandleView(context, 1, 1) to FrameLayout.LayoutParams(handleSize, handleSize).apply {
+                gravity = Gravity.END or Gravity.BOTTOM
+            },
+        )
+        handles.forEach { (view, params) ->
+            floatingEditOverlay.addView(view, params)
+        }
+        floatingEditOverlay.addView(
+            resetFloatingKeyboardButton,
+            FrameLayout.LayoutParams(dp(110), dp(42)).apply {
+                gravity = Gravity.END or Gravity.BOTTOM
+                rightMargin = outset + dp(6)
+                bottomMargin = outset + dp(18)
+            }
+        )
+    }
+
+    private fun updateFloatingEditOverlaySize() {
+        val outset = dp(FLOATING_EDIT_OVERLAY_OUTSET_DP)
+        floatingEditOverlay.updateLayoutParams<LayoutParams> {
+            width = if (floatingKeyboardEnabled) {
+                floatingKeyboardWidthPx + outset * 2
+            } else {
+                0
+            }
+            height = if (floatingKeyboardEnabled && keyboardView.height > 0) {
+                keyboardView.height + outset * 2
+            } else {
+                0
+            }
+        }
+    }
+
+    private fun updateFloatingEditOverlayPosition() {
+        val outset = dp(FLOATING_EDIT_OVERLAY_OUTSET_DP).toFloat()
+        floatingEditOverlay.visibility = if (floatingKeyboardEnabled) VISIBLE else GONE
+        floatingEditOverlay.translationX = floatingKeyboardX - outset
+        floatingEditOverlay.translationY = floatingKeyboardY - outset
+        floatingEditOverlay.elevation = keyboardView.elevation + 1f
+    }
+
+    private fun resetFloatingKeyboardLayout() {
+        activeFloatingKeyboardWidthPercent.setValue(DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT)
+        activeFloatingKeyboardXRatio.setValue(DEFAULT_FLOATING_KEYBOARD_X_RATIO)
+        activeFloatingKeyboardYRatio.setValue(
+            when (resources.configuration.orientation) {
+                Configuration.ORIENTATION_LANDSCAPE -> DEFAULT_FLOATING_KEYBOARD_Y_RATIO_LANDSCAPE
+                else -> DEFAULT_FLOATING_KEYBOARD_Y_RATIO
+            }
+        )
+        updateKeyboardSize()
     }
 
     private fun restoreFloatingKeyboardPosition() {
@@ -557,6 +687,8 @@ class InputView(
         floatingKeyboardY = min(max(y, 0f), maxY)
         keyboardView.translationX = floatingKeyboardX
         keyboardView.translationY = floatingKeyboardY
+        updateFloatingEditOverlaySize()
+        updateFloatingEditOverlayPosition()
         if (persist) {
             activeFloatingKeyboardXRatio.setValue(if (maxX > 0f) floatingKeyboardX / maxX else 0.5f)
             activeFloatingKeyboardYRatio.setValue(if (maxY > 0f) floatingKeyboardY / maxY else 1f)
@@ -569,11 +701,12 @@ class InputView(
             return false
         }
         keyboardView.getLocationInWindow(inputViewLocation)
+        val outset = dp(FLOATING_EDIT_OVERLAY_OUTSET_DP)
         outRect.set(
-            inputViewLocation[0],
-            inputViewLocation[1],
-            inputViewLocation[0] + keyboardView.width,
-            inputViewLocation[1] + keyboardView.height
+            inputViewLocation[0] - outset,
+            inputViewLocation[1] - outset,
+            inputViewLocation[0] + keyboardView.width + outset,
+            inputViewLocation[1] + keyboardView.height + outset
         )
         return true
     }
