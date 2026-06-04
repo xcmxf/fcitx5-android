@@ -8,9 +8,11 @@ package org.fcitx.fcitx5.android.input
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.Paint
 import android.graphics.Rect
+import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.view.Gravity
@@ -92,12 +94,16 @@ class InputView(
         private const val MIN_FLOATING_KEYBOARD_WIDTH_PERCENT = 55
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
+        private const val FLOATING_BOTTOM_CONTROLS_HEIGHT_DP = 46
+        private const val FLOATING_MOVE_HANDLE_WIDTH_DP = 92
+        private const val FLOATING_MOVE_HANDLE_HEIGHT_DP = 5
         private const val FLOATING_RESIZE_HANDLE_SIZE_DP = 40
         private const val FLOATING_KEYBOARD_CORNER_RADIUS_DP = 28
         private const val FLOATING_KEYBOARD_ELEVATION_DP = 12
         private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 18
-        private const val FLOATING_CORNER_HANDLE_SIZE_DP = 46
+        private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
+        private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.86f
         private const val DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT = 80
         private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO = 0.48f
@@ -128,8 +134,15 @@ class InputView(
     private val resizeHandle = imageView {
         imageResource = R.drawable.ic_baseline_drag_handle_24
         scaleType = ImageView.ScaleType.CENTER
-        alpha = 0.72f
+        alpha = 0f
         contentDescription = context.getString(R.string.resize_floating_keyboard)
+    }
+    private val floatingMoveHandle = view(::View) {
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(FLOATING_MOVE_HANDLE_HEIGHT_DP).toFloat()
+            setColor(Color.WHITE.alpha(0.42f))
+        }
     }
     private val floatingEditOverlay = view(::FrameLayout) {
         clipChildren = false
@@ -140,11 +153,11 @@ class InputView(
         text = context.getString(R.string.reset)
         gravity = Gravity.CENTER
         setTextColor(theme.altKeyTextColor)
-        textSize = 14f
+        textSize = 13f
         includeFontPadding = false
         background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(18).toFloat()
+            cornerRadius = dp(16).toFloat()
             setColor(theme.altKeyBackgroundColor.alpha(0.86f))
         }
         setOnClickListener { resetFloatingKeyboardLayout() }
@@ -219,11 +232,16 @@ class InputView(
                 Configuration.ORIENTATION_LANDSCAPE -> keyboardHeightPercentLandscape
                 else -> keyboardHeightPercent
             }.getValue()
-            return (if (floatingKeyboardEnabled) {
+            val baseHeight = (if (floatingKeyboardEnabled) {
                 height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
             } else {
                 resources.displayMetrics.heightPixels
             }) * percent / 100
+            return if (floatingKeyboardEnabled) {
+                (baseHeight * FLOATING_KEYBOARD_HEIGHT_SCALE).roundToInt()
+            } else {
+                baseHeight
+            }
         }
 
     private val keyboardSidePaddingPx: Int
@@ -301,12 +319,14 @@ class InputView(
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
             val inset = paint.strokeWidth / 2f
-            val startX = if (horizontalSign < 0) inset else width - inset
-            val endX = if (horizontalSign < 0) width * 0.58f else width * 0.42f
-            val startY = if (verticalSign < 0) inset else height - inset
-            val endY = if (verticalSign < 0) height * 0.58f else height * 0.42f
-            canvas.drawLine(startX, startY, endX, startY, paint)
-            canvas.drawLine(startX, startY, startX, endY, paint)
+            val arc = RectF(inset, inset, width - inset, height - inset)
+            val startAngle = when {
+                horizontalSign < 0 && verticalSign < 0 -> 180f
+                horizontalSign > 0 && verticalSign < 0 -> 270f
+                horizontalSign > 0 && verticalSign > 0 -> 0f
+                else -> 90f
+            }
+            canvas.drawArc(arc, startAngle, 90f, false, paint)
         }
     }
 
@@ -451,6 +471,14 @@ class InputView(
                 endToStartOf(rightPaddingSpace)
                 bottomOfParent()
             })
+            add(floatingMoveHandle, lParams(
+                dp(FLOATING_MOVE_HANDLE_WIDTH_DP),
+                dp(FLOATING_MOVE_HANDLE_HEIGHT_DP)
+            ) {
+                centerHorizontally()
+                bottomOfParent()
+                bottomMargin = dp(15)
+            })
             add(resizeHandle, lParams(dp(FLOATING_RESIZE_HANDLE_SIZE_DP), dp(FLOATING_RESIZE_HANDLE_SIZE_DP)) {
                 endOfParent()
                 bottomOfParent()
@@ -458,6 +486,7 @@ class InputView(
         }
 
         bottomPaddingSpace.setOnTouchListener(floatingKeyboardDragListener)
+        floatingMoveHandle.setOnTouchListener(floatingKeyboardDragListener)
         resizeHandle.setOnTouchListener(floatingKeyboardResizeListener)
         kawaiiBar.view.setOnTouchListener(floatingKeyboardDragListener)
 
@@ -498,7 +527,7 @@ class InputView(
         }
         bottomPaddingSpace.updateLayoutParams {
             height = if (floatingKeyboardEnabled) {
-                max(keyboardBottomPaddingPx, floatingDragHandleHeightPx)
+                max(dp(FLOATING_BOTTOM_CONTROLS_HEIGHT_DP), floatingDragHandleHeightPx)
             } else {
                 keyboardBottomPaddingPx
             }
@@ -507,6 +536,7 @@ class InputView(
         if (floatingKeyboardEnabled) {
             leftPaddingSpace.visibility = GONE
             rightPaddingSpace.visibility = GONE
+            floatingMoveHandle.visibility = VISIBLE
             resizeHandle.visibility = VISIBLE
             windowManager.view.updateLayoutParams<LayoutParams> {
                 startToEnd = unset
@@ -524,6 +554,7 @@ class InputView(
             // hide side padding space views when unnecessary
             leftPaddingSpace.visibility = GONE
             rightPaddingSpace.visibility = GONE
+            floatingMoveHandle.visibility = GONE
             resizeHandle.visibility = GONE
             windowManager.view.updateLayoutParams<LayoutParams> {
                 startToEnd = unset
@@ -534,6 +565,7 @@ class InputView(
         } else {
             leftPaddingSpace.visibility = VISIBLE
             rightPaddingSpace.visibility = VISIBLE
+            floatingMoveHandle.visibility = GONE
             resizeHandle.visibility = GONE
             leftPaddingSpace.updateLayoutParams {
                 width = sidePadding
@@ -644,10 +676,10 @@ class InputView(
         }
         floatingEditOverlay.addView(
             resetFloatingKeyboardButton,
-            FrameLayout.LayoutParams(dp(110), dp(42)).apply {
+            FrameLayout.LayoutParams(dp(86), dp(34)).apply {
                 gravity = Gravity.END or Gravity.BOTTOM
-                rightMargin = outset + dp(6)
-                bottomMargin = outset + dp(18)
+                rightMargin = outset + dp(8)
+                bottomMargin = outset + dp(10)
             }
         )
     }
