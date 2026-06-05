@@ -97,6 +97,7 @@ class InputView(
         private const val FLOATING_BOTTOM_CONTROLS_HEIGHT_DP = KawaiiBarComponent.HEIGHT
         private const val FLOATING_MOVE_HANDLE_WIDTH_DP = 92
         private const val FLOATING_MOVE_HANDLE_HEIGHT_DP = 5
+        private const val FLOATING_DOCK_THRESHOLD_DP = 72
         private const val FLOATING_RESIZE_HANDLE_SIZE_DP = 40
         private const val FLOATING_KEYBOARD_CORNER_RADIUS_DP = 28
         private const val FLOATING_KEYBOARD_ELEVATION_DP = 12
@@ -142,7 +143,7 @@ class InputView(
         background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(FLOATING_MOVE_HANDLE_HEIGHT_DP).toFloat()
-            setColor(Color.WHITE.alpha(0.42f))
+            setColor(theme.keyTextColor.alpha(0.38f))
         }
     }
     private val floatingEditOverlay = view(::FrameLayout) {
@@ -364,7 +365,9 @@ class InputView(
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                scheduleHideFloatingEditControls()
+                if (!dockFloatingKeyboardIfNearBottom()) {
+                    scheduleHideFloatingEditControls()
+                }
                 true
             }
             else -> false
@@ -769,6 +772,19 @@ class InputView(
             activeFloatingKeyboardYRatio.setValue(if (maxY > 0f) floatingKeyboardY / maxY else 1f)
         }
         service.window.window?.decorView?.requestLayout()
+    }
+
+    private fun dockFloatingKeyboardIfNearBottom(): Boolean {
+        if (!floatingKeyboardEnabled || height <= 0 || keyboardView.height <= 0) return false
+        val dockY = height - navBarBottomInset - keyboardView.height
+        if (dockY - floatingKeyboardY > dp(FLOATING_DOCK_THRESHOLD_DP)) return false
+        floatingKeyboardEnabled = false
+        floatingEditControlsVisible = false
+        removeCallbacks(hideFloatingEditControlsRunnable)
+        keyboardView.translationX = 0f
+        keyboardView.translationY = 0f
+        applyKeyboardMode()
+        return true
     }
 
     fun getFloatingKeyboardTouchableRect(outRect: Rect): Boolean {
