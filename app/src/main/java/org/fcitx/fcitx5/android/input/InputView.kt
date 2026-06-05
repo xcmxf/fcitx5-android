@@ -103,7 +103,8 @@ class InputView(
         private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 18
         private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
-        private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.56f
+        private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.62f
+        private const val FLOATING_KEYBOARD_CONTENT_OFFSET_DP = 48
         private const val DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT = 80
         private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO = 0.48f
@@ -543,6 +544,7 @@ class InputView(
             rightPaddingSpace.visibility = GONE
             floatingMoveHandle.visibility = VISIBLE
             resizeHandle.visibility = GONE
+            windowManager.view.translationY = dp(FLOATING_KEYBOARD_CONTENT_OFFSET_DP).toFloat()
             windowManager.view.updateLayoutParams<LayoutParams> {
                 startToEnd = unset
                 endToStart = unset
@@ -561,6 +563,7 @@ class InputView(
             rightPaddingSpace.visibility = GONE
             floatingMoveHandle.visibility = GONE
             resizeHandle.visibility = GONE
+            windowManager.view.translationY = 0f
             windowManager.view.updateLayoutParams<LayoutParams> {
                 startToEnd = unset
                 endToStart = unset
@@ -572,6 +575,7 @@ class InputView(
             rightPaddingSpace.visibility = VISIBLE
             floatingMoveHandle.visibility = GONE
             resizeHandle.visibility = GONE
+            windowManager.view.translationY = 0f
             leftPaddingSpace.updateLayoutParams {
                 width = sidePadding
             }
