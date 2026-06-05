@@ -498,7 +498,7 @@ class InputView(
             ) {
                 centerHorizontally()
                 bottomOfParent()
-                bottomMargin = dp(34)
+                bottomMargin = dp(10)
             })
             add(resizeHandle, lParams(dp(FLOATING_RESIZE_HANDLE_SIZE_DP), dp(FLOATING_RESIZE_HANDLE_SIZE_DP)) {
                 endOfParent()
@@ -547,7 +547,7 @@ class InputView(
         }
         bottomPaddingSpace.updateLayoutParams {
             height = if (floatingKeyboardEnabled) {
-                max(dp(FLOATING_BOTTOM_CONTROLS_HEIGHT_DP), floatingDragHandleHeightPx)
+                dp(FLOATING_BOTTOM_CONTROLS_HEIGHT_DP)
             } else {
                 keyboardBottomPaddingPx
             }
