@@ -96,7 +96,7 @@ class InputView(
         private const val MIN_FLOATING_KEYBOARD_WIDTH_DP = 320
         private const val MIN_FLOATING_KEYBOARD_HEIGHT_DP = 260
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
-        private const val FLOATING_BOTTOM_CONTROLS_HEIGHT_DP = KawaiiBarComponent.HEIGHT
+        private const val FLOATING_BOTTOM_CONTROLS_HEIGHT_DP = 24
         private const val FLOATING_MOVE_HANDLE_WIDTH_DP = 92
         private const val FLOATING_MOVE_HANDLE_HEIGHT_DP = 5
         private const val FLOATING_DOCK_THRESHOLD_DP = 72
@@ -109,7 +109,6 @@ class InputView(
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
         private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 300
         private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.62f
-        private const val FLOATING_KEYBOARD_CONTENT_OFFSET_DP = 32
         private const val DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT = 80
         private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO = 0.48f
@@ -505,7 +504,6 @@ class InputView(
         bottomPaddingSpace.setOnTouchListener(floatingKeyboardDragListener)
         floatingMoveHandle.setOnTouchListener(floatingKeyboardDragListener)
         resizeHandle.setOnTouchListener(floatingKeyboardResizeListener(1))
-        kawaiiBar.view.setOnTouchListener(floatingKeyboardDragListener)
 
         updateKeyboardSize()
 
@@ -555,7 +553,7 @@ class InputView(
             rightPaddingSpace.visibility = GONE
             floatingMoveHandle.visibility = VISIBLE
             resizeHandle.visibility = GONE
-            windowManager.view.translationY = dp(FLOATING_KEYBOARD_CONTENT_OFFSET_DP).toFloat()
+            windowManager.view.translationY = 0f
             windowManager.view.updateLayoutParams<LayoutParams> {
                 startToEnd = unset
                 endToStart = unset
