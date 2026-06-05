@@ -102,6 +102,7 @@ jobs:
             base="$(basename "${apk}")"
             signed="release-assets/${base/-unsigned.apk/-debugsigned.apk}"
             "${APKSIGNER}" sign \
+              --v4-signing-enabled false \
               --ks nightly-debug.keystore \
               --ks-pass pass:android \
               --key-pass pass:android \

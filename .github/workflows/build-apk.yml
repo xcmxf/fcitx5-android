@@ -67,6 +67,7 @@ jobs:
             base="$(basename "${apk}")"
             signed="signed-apks/${base/-unsigned.apk/-debugsigned.apk}"
             "${APKSIGNER}" sign \
+              --v4-signing-enabled false \
               --ks nightly-debug.keystore \
               --ks-pass pass:android \
               --key-pass pass:android \
