@@ -9,6 +9,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        abi:
+          - arm64-v8a
+          - x86_64
     steps:
       - name: Fetch source code
         uses: actions/checkout@v6
@@ -35,10 +41,10 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build release APK
-        run: ./gradlew :app:assembleRelease -PbuildABI=x86_64
+        run: ./gradlew :app:assembleRelease -PbuildABI=${{ matrix.abi }}
 
       - name: Upload app
         uses: actions/upload-artifact@v6
         with:
-          name: app-release
+          name: app-release-${{ matrix.abi }}
           path: app/build/outputs/apk/release/

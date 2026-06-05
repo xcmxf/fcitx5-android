@@ -1,0 +1,105 @@
+name: Nightly Release
+
+on:
+  schedule:
+    - cron: "0 18 * * *"
+  workflow_dispatch:
+    inputs:
+      target_branch:
+        description: "Fork branch to sync and release"
+        required: true
+        default: "test-floating-keyboard-20260604-225446"
+      upstream_branch:
+        description: "Upstream branch to merge"
+        required: true
+        default: "master"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly-release
+  cancel-in-progress: true
+
+env:
+  TARGET_BRANCH: ${{ github.event.inputs.target_branch || 'test-floating-keyboard-20260604-225446' }}
+  UPSTREAM_BRANCH: ${{ github.event.inputs.upstream_branch || 'master' }}
+  UPSTREAM_REPO: fcitx5-android/fcitx5-android
+
+jobs:
+  nightly:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Fetch source code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.inputs.target_branch || 'test-floating-keyboard-20260604-225446' }}
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Sync upstream
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch origin "${TARGET_BRANCH}"
+          git fetch upstream "${UPSTREAM_BRANCH}"
+          git checkout -B "${TARGET_BRANCH}" "origin/${TARGET_BRANCH}"
+          git merge --no-edit "upstream/${UPSTREAM_BRANCH}"
+          git submodule sync --recursive
+          git submodule update --init --recursive
+          git push origin "HEAD:${TARGET_BRANCH}"
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android environment
+        uses: android-actions/setup-android@v3
+
+      - name: Install build dependencies
+        run: |
+          sdkmanager --install "cmake;3.31.6"
+          sudo apt update
+          sudo apt install -y extra-cmake-modules gettext
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v5
+
+      - name: Build nightly APKs
+        run: |
+          mkdir -p release-assets
+          for abi in arm64-v8a x86_64
+          do
+            rm -rf app/build/outputs/apk/release
+            ./gradlew :app:assembleRelease -PbuildABI="${abi}"
+            cp app/build/outputs/apk/release/*.apk release-assets/
+          done
+
+      - name: Prepare release notes
+        run: |
+          {
+            echo "Nightly build from ${GITHUB_REPOSITORY}@$(git rev-parse --short HEAD)"
+            echo
+            echo "- Synced upstream: ${UPSTREAM_REPO}@${UPSTREAM_BRANCH}"
+            echo "- Target branch: ${TARGET_BRANCH}"
+            echo "- Built ABIs: arm64-v8a, x86_64"
+            echo
+            echo "Commit:"
+            git log -1 --oneline
+          } > release-notes.md
+
+      - name: Publish nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete nightly --yes --cleanup-tag || true
+          git tag -f nightly
+          git push origin refs/tags/nightly --force
+          gh release create nightly release-assets/* \
+            --title "Nightly $(date -u +%Y-%m-%d)" \
+            --notes-file release-notes.md \
+            --prerelease \
+            --latest=false
