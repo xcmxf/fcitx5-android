@@ -40,6 +40,7 @@ import org.fcitx.fcitx5.android.data.theme.Theme
 import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.input.bar.KawaiiBarComponent
 import org.fcitx.fcitx5.android.input.broadcast.InputBroadcaster
+import org.fcitx.fcitx5.android.input.broadcast.InputBroadcastReceiver
 import org.fcitx.fcitx5.android.input.broadcast.PreeditEmptyStateComponent
 import org.fcitx.fcitx5.android.input.broadcast.PunctuationComponent
 import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
@@ -51,6 +52,7 @@ import org.fcitx.fcitx5.android.input.picker.emoticonPicker
 import org.fcitx.fcitx5.android.input.picker.symbolPicker
 import org.fcitx.fcitx5.android.input.popup.PopupComponent
 import org.fcitx.fcitx5.android.input.preedit.PreeditComponent
+import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.unset
@@ -88,7 +90,7 @@ class InputView(
     service: FcitxInputMethodService,
     fcitx: FcitxConnection,
     theme: Theme
-) : BaseInputView(service, fcitx, theme) {
+) : BaseInputView(service, fcitx, theme), InputBroadcastReceiver {
 
     companion object {
         private const val MIN_FLOATING_KEYBOARD_WIDTH_PERCENT = 78
@@ -109,6 +111,7 @@ class InputView(
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
         private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
         private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.70f
+        private const val FLOATING_PANEL_HEIGHT_SCALE = 0.46f
         private const val DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT = 80
         private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO = 0.48f
@@ -243,7 +246,12 @@ class InputView(
                 resources.displayMetrics.heightPixels
             }) * percent / 100
             return if (floatingKeyboardEnabled) {
-                (baseHeight * FLOATING_KEYBOARD_HEIGHT_SCALE).roundToInt()
+                val scale = if (windowManager.isAttached(KeyboardWindow)) {
+                    FLOATING_KEYBOARD_HEIGHT_SCALE
+                } else {
+                    FLOATING_PANEL_HEIGHT_SCALE
+                }
+                (baseHeight * scale).roundToInt()
             } else {
                 baseHeight
             }
@@ -627,6 +635,12 @@ class InputView(
             }
         }
         return insets
+    }
+
+    override fun onWindowAttached(window: InputWindow) {
+        if (floatingKeyboardEnabled) {
+            updateKeyboardSize()
+        }
     }
 
     private fun applyKeyboardMode() {

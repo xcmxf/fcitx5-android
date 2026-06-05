@@ -164,4 +164,6 @@ class InputWindowManager : UniqueViewComponent<InputWindowManager, FrameLayout>(
     }
 
     fun isAttached(window: InputWindow) = currentWindow === window
+
+    fun isAttached(windowKey: EssentialWindow.Key) = essentialWindows[windowKey]?.first === currentWindow
 }
