@@ -108,7 +108,7 @@ class InputView(
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
         private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
-        private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.60f
+        private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.70f
         private const val DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT = 80
         private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO = 0.48f
@@ -490,7 +490,7 @@ class InputView(
             ) {
                 centerHorizontally()
                 bottomOfParent()
-                bottomMargin = dp(10)
+                bottomMargin = dp(34)
             })
             add(resizeHandle, lParams(dp(FLOATING_RESIZE_HANDLE_SIZE_DP), dp(FLOATING_RESIZE_HANDLE_SIZE_DP)) {
                 endOfParent()
