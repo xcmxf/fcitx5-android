@@ -80,15 +80,7 @@ jobs:
 
       - name: Sign nightly APKs
         run: |
-          keytool -genkeypair \
-            -keystore nightly-debug.keystore \
-            -storepass android \
-            -keypass android \
-            -alias androiddebugkey \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          base64 -d .github/nightly-debug.keystore.b64 > nightly-debug.keystore
 
           APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
           if [ -z "${APKSIGNER}" ]; then
@@ -119,7 +111,7 @@ jobs:
             echo "- Synced upstream: ${UPSTREAM_REPO}@${UPSTREAM_BRANCH}"
             echo "- Target branch: ${TARGET_BRANCH}"
             echo "- Built ABIs: arm64-v8a, x86_64"
-            echo "- Signing: temporary nightly debug key"
+            echo "- Signing: fixed nightly debug key"
             echo
             echo "Commit:"
             git log -1 --oneline
