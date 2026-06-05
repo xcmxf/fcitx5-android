@@ -94,7 +94,7 @@ class InputView(
         private const val MIN_FLOATING_KEYBOARD_WIDTH_PERCENT = 55
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
-        private const val FLOATING_BOTTOM_CONTROLS_HEIGHT_DP = 36
+        private const val FLOATING_BOTTOM_CONTROLS_HEIGHT_DP = KawaiiBarComponent.HEIGHT
         private const val FLOATING_MOVE_HANDLE_WIDTH_DP = 92
         private const val FLOATING_MOVE_HANDLE_HEIGHT_DP = 5
         private const val FLOATING_RESIZE_HANDLE_SIZE_DP = 40
@@ -103,7 +103,7 @@ class InputView(
         private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 18
         private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
-        private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.72f
+        private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.62f
         private const val DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT = 80
         private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO = 0.48f
