@@ -70,12 +70,44 @@ jobs:
 
       - name: Build nightly APKs
         run: |
-          mkdir -p release-assets
+          mkdir -p unsigned-assets
           for abi in arm64-v8a x86_64
           do
             rm -rf app/build/outputs/apk/release
             ./gradlew :app:assembleRelease -PbuildABI="${abi}"
-            cp app/build/outputs/apk/release/*.apk release-assets/
+            cp app/build/outputs/apk/release/*-unsigned.apk unsigned-assets/
+          done
+
+      - name: Sign nightly APKs
+        run: |
+          keytool -genkeypair \
+            -keystore nightly-debug.keystore \
+            -storepass android \
+            -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          if [ -z "${APKSIGNER}" ]; then
+            sdkmanager --install "build-tools;36.0.0"
+            APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          fi
+
+          mkdir -p release-assets
+          for apk in unsigned-assets/*-unsigned.apk
+          do
+            base="$(basename "${apk}")"
+            signed="release-assets/${base/-unsigned.apk/-debugsigned.apk}"
+            "${APKSIGNER}" sign \
+              --ks nightly-debug.keystore \
+              --ks-pass pass:android \
+              --key-pass pass:android \
+              --out "${signed}" \
+              "${apk}"
+            "${APKSIGNER}" verify --verbose "${signed}"
           done
 
       - name: Prepare release notes
@@ -86,6 +118,7 @@ jobs:
             echo "- Synced upstream: ${UPSTREAM_REPO}@${UPSTREAM_BRANCH}"
             echo "- Target branch: ${TARGET_BRANCH}"
             echo "- Built ABIs: arm64-v8a, x86_64"
+            echo "- Signing: temporary nightly debug key"
             echo
             echo "Commit:"
             git log -1 --oneline

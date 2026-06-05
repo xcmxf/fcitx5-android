@@ -43,8 +43,40 @@ jobs:
       - name: Build release APK
         run: ./gradlew :app:assembleRelease -PbuildABI=${{ matrix.abi }}
 
+      - name: Sign release APK
+        run: |
+          keytool -genkeypair \
+            -keystore nightly-debug.keystore \
+            -storepass android \
+            -keypass android \
+            -alias androiddebugkey \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          if [ -z "${APKSIGNER}" ]; then
+            sdkmanager --install "build-tools;36.0.0"
+            APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
+          fi
+
+          mkdir -p signed-apks
+          for apk in app/build/outputs/apk/release/*-unsigned.apk
+          do
+            base="$(basename "${apk}")"
+            signed="signed-apks/${base/-unsigned.apk/-debugsigned.apk}"
+            "${APKSIGNER}" sign \
+              --ks nightly-debug.keystore \
+              --ks-pass pass:android \
+              --key-pass pass:android \
+              --out "${signed}" \
+              "${apk}"
+            "${APKSIGNER}" verify --verbose "${signed}"
+          done
+
       - name: Upload app
         uses: actions/upload-artifact@v6
         with:
           name: app-release-${{ matrix.abi }}
-          path: app/build/outputs/apk/release/
+          path: signed-apks/
