@@ -96,6 +96,7 @@ class InputView(
         private const val MIN_FLOATING_KEYBOARD_WIDTH_DP = 320
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
         private const val FLOATING_BOTTOM_CONTROLS_HEIGHT_DP = 24
+        private const val FLOATING_KEYBOARD_SIDE_INSET_DP = 3
         private const val FLOATING_MOVE_HANDLE_WIDTH_DP = 92
         private const val FLOATING_MOVE_HANDLE_HEIGHT_DP = 5
         private const val FLOATING_DOCK_THRESHOLD_DP = 72
@@ -550,6 +551,8 @@ class InputView(
             floatingMoveHandle.visibility = VISIBLE
             resizeHandle.visibility = GONE
             windowManager.view.translationY = 0f
+            val floatingSideInset = dp(FLOATING_KEYBOARD_SIDE_INSET_DP)
+            windowManager.view.setPadding(floatingSideInset, 0, floatingSideInset, 0)
             windowManager.view.updateLayoutParams<LayoutParams> {
                 startToEnd = unset
                 endToStart = unset
@@ -569,6 +572,7 @@ class InputView(
             floatingMoveHandle.visibility = GONE
             resizeHandle.visibility = GONE
             windowManager.view.translationY = 0f
+            windowManager.view.setPadding(0, 0, 0, 0)
             windowManager.view.updateLayoutParams<LayoutParams> {
                 startToEnd = unset
                 endToStart = unset
@@ -581,6 +585,7 @@ class InputView(
             floatingMoveHandle.visibility = GONE
             resizeHandle.visibility = GONE
             windowManager.view.translationY = 0f
+            windowManager.view.setPadding(0, 0, 0, 0)
             leftPaddingSpace.updateLayoutParams {
                 width = sidePadding
             }
