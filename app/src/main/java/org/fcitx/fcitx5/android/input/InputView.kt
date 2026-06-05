@@ -94,7 +94,6 @@ class InputView(
         private const val MIN_FLOATING_KEYBOARD_WIDTH_PERCENT = 78
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
         private const val MIN_FLOATING_KEYBOARD_WIDTH_DP = 320
-        private const val MIN_FLOATING_KEYBOARD_HEIGHT_DP = 260
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
         private const val FLOATING_BOTTOM_CONTROLS_HEIGHT_DP = 24
         private const val FLOATING_MOVE_HANDLE_WIDTH_DP = 92
@@ -107,7 +106,7 @@ class InputView(
         private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
-        private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 300
+        private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
         private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.62f
         private const val DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT = 80
         private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
@@ -243,10 +242,7 @@ class InputView(
                 resources.displayMetrics.heightPixels
             }) * percent / 100
             return if (floatingKeyboardEnabled) {
-                max(
-                    (baseHeight * FLOATING_KEYBOARD_HEIGHT_SCALE).roundToInt(),
-                    dp(MIN_FLOATING_KEYBOARD_HEIGHT_DP)
-                )
+                (baseHeight * FLOATING_KEYBOARD_HEIGHT_SCALE).roundToInt()
             } else {
                 baseHeight
             }
