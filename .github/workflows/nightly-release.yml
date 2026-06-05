@@ -95,10 +95,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete nightly --yes --cleanup-tag || true
+          gh release delete nightly --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag || true
+          git push origin :refs/tags/nightly || true
           git tag -f nightly
           git push origin refs/tags/nightly --force
           gh release create nightly release-assets/* \
+            --repo "${GITHUB_REPOSITORY}" \
             --title "Nightly $(date -u +%Y-%m-%d)" \
             --notes-file release-notes.md \
             --prerelease \
