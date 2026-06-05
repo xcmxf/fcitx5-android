@@ -104,7 +104,7 @@ class InputView(
         private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.62f
-        private const val FLOATING_KEYBOARD_CONTENT_OFFSET_DP = 48
+        private const val FLOATING_KEYBOARD_CONTENT_OFFSET_DP = 32
         private const val DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT = 80
         private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO = 0.48f
