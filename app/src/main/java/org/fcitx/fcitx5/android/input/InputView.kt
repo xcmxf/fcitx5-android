@@ -91,8 +91,10 @@ class InputView(
 ) : BaseInputView(service, fcitx, theme) {
 
     companion object {
-        private const val MIN_FLOATING_KEYBOARD_WIDTH_PERCENT = 55
+        private const val MIN_FLOATING_KEYBOARD_WIDTH_PERCENT = 78
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
+        private const val MIN_FLOATING_KEYBOARD_WIDTH_DP = 320
+        private const val MIN_FLOATING_KEYBOARD_HEIGHT_DP = 260
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
         private const val FLOATING_BOTTOM_CONTROLS_HEIGHT_DP = KawaiiBarComponent.HEIGHT
         private const val FLOATING_MOVE_HANDLE_WIDTH_DP = 92
@@ -104,6 +106,8 @@ class InputView(
         private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 18
         private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
+        private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
+        private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 300
         private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.62f
         private const val FLOATING_KEYBOARD_CONTENT_OFFSET_DP = 32
         private const val DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT = 80
@@ -155,11 +159,11 @@ class InputView(
         text = context.getString(R.string.reset)
         gravity = Gravity.CENTER
         setTextColor(theme.altKeyTextColor)
-        textSize = 13f
+        textSize = 12f
         includeFontPadding = false
         background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
-            cornerRadius = dp(16).toFloat()
+            cornerRadius = dp(14).toFloat()
             setColor(theme.altKeyBackgroundColor.alpha(0.86f))
         }
         setOnClickListener { resetFloatingKeyboardLayout() }
@@ -240,7 +244,10 @@ class InputView(
                 resources.displayMetrics.heightPixels
             }) * percent / 100
             return if (floatingKeyboardEnabled) {
-                (baseHeight * FLOATING_KEYBOARD_HEIGHT_SCALE).roundToInt()
+                max(
+                    (baseHeight * FLOATING_KEYBOARD_HEIGHT_SCALE).roundToInt(),
+                    dp(MIN_FLOATING_KEYBOARD_HEIGHT_DP)
+                )
             } else {
                 baseHeight
             }
@@ -267,7 +274,8 @@ class InputView(
     private val floatingKeyboardWidthPx: Int
         get() {
             val parentWidth = width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
-            return parentWidth * activeFloatingKeyboardWidthPercent.getValue() / 100
+            val percentWidth = parentWidth * activeFloatingKeyboardWidthPercent.getValue() / 100
+            return max(percentWidth, min(parentWidth, dp(MIN_FLOATING_KEYBOARD_WIDTH_DP)))
         }
 
     private val floatingDragHandleHeightPx: Int
@@ -393,9 +401,9 @@ class InputView(
                 val percent = (newWidth * 100f / parentWidth)
                     .roundToInt()
                     .coerceIn(MIN_FLOATING_KEYBOARD_WIDTH_PERCENT, MAX_FLOATING_KEYBOARD_WIDTH_PERCENT)
-                val newWidthPx = parentWidth * percent / 100
                 activeFloatingKeyboardWidthPercent.setValue(percent)
                 updateKeyboardSize()
+                val newWidthPx = floatingKeyboardWidthPx
                 val newX = if (horizontalSign < 0) {
                     floatingDragStartKeyboardX + floatingResizeStartWidth - newWidthPx
                 } else {
@@ -689,10 +697,10 @@ class InputView(
         }
         floatingEditOverlay.addView(
             resetFloatingKeyboardButton,
-            FrameLayout.LayoutParams(dp(86), dp(34)).apply {
+            FrameLayout.LayoutParams(dp(68), dp(28)).apply {
                 gravity = Gravity.END or Gravity.BOTTOM
-                rightMargin = outset + dp(8)
-                bottomMargin = outset + dp(10)
+                rightMargin = outset + dp(6)
+                bottomMargin = outset + dp(6)
             }
         )
     }
@@ -721,6 +729,15 @@ class InputView(
         floatingEditOverlay.translationX = floatingKeyboardX - outset
         floatingEditOverlay.translationY = floatingKeyboardY - outset
         floatingEditOverlay.elevation = keyboardView.elevation + 1f
+        resetFloatingKeyboardButton.visibility = if (
+            floatingEditOverlay.visibility == VISIBLE &&
+            floatingKeyboardWidthPx >= dp(FLOATING_RESET_BUTTON_MIN_WIDTH_DP) &&
+            keyboardView.height >= dp(FLOATING_RESET_BUTTON_MIN_HEIGHT_DP)
+        ) {
+            VISIBLE
+        } else {
+            GONE
+        }
     }
 
     private fun showFloatingEditControls() {
