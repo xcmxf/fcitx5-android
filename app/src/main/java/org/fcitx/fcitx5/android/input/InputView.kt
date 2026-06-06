@@ -789,7 +789,7 @@ class InputView(
             resetFloatingKeyboardButton,
             FrameLayout.LayoutParams(dp(68), dp(28)).apply {
                 gravity = Gravity.END or Gravity.BOTTOM
-                rightMargin = outset + dp(6)
+                rightMargin = outset + handleSize + dp(6)
                 bottomMargin = outset + dp(6)
             }
         )
@@ -820,15 +820,7 @@ class InputView(
         floatingEditOverlay.translationY = floatingKeyboardY - outset
         floatingEditOverlay.elevation = keyboardView.elevation + 1f
         resetFloatingKeyboardButton.translationY = 0f
-        resetFloatingKeyboardButton.visibility = if (
-            floatingEditOverlay.visibility == VISIBLE &&
-            floatingKeyboardWidthPx >= dp(FLOATING_RESET_BUTTON_MIN_WIDTH_DP) &&
-            keyboardView.height >= dp(FLOATING_RESET_BUTTON_MIN_HEIGHT_DP)
-        ) {
-            VISIBLE
-        } else {
-            GONE
-        }
+        resetFloatingKeyboardButton.visibility = floatingEditOverlay.visibility
     }
 
     private fun showFloatingEditControls() {
