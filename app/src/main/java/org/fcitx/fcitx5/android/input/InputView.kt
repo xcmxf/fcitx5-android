@@ -819,7 +819,7 @@ class InputView(
         floatingEditOverlay.translationX = floatingKeyboardX - outset
         floatingEditOverlay.translationY = floatingKeyboardY - outset
         floatingEditOverlay.elevation = keyboardView.elevation + 1f
-        resetFloatingKeyboardButton.translationY = dp(FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP).toFloat()
+        resetFloatingKeyboardButton.translationY = 0f
         resetFloatingKeyboardButton.visibility = if (
             floatingEditOverlay.visibility == VISIBLE &&
             floatingKeyboardWidthPx >= dp(FLOATING_RESET_BUTTON_MIN_WIDTH_DP) &&
