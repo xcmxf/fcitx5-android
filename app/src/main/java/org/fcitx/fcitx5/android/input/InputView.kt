@@ -684,6 +684,7 @@ class InputView(
         floatingMoveHandle.translationY =
             floatingKeyboardY + keyboardView.height + dp(FLOATING_EXTERNAL_CONTROLS_GAP_DP)
         floatingMoveHandle.elevation = keyboardView.elevation + 1f
+        floatingMoveHandle.bringToFront()
         val resetWidth = resetFloatingKeyboardButton.width.takeIf { it > 0 } ?: dp(68)
         resetFloatingKeyboardButton.translationX =
             floatingKeyboardX + keyboardView.width - resetWidth -
@@ -691,6 +692,7 @@ class InputView(
         resetFloatingKeyboardButton.translationY =
             floatingKeyboardY + keyboardView.height + dp(FLOATING_EXTERNAL_CONTROLS_GAP_DP)
         resetFloatingKeyboardButton.elevation = keyboardView.elevation + 1f
+        resetFloatingKeyboardButton.bringToFront()
     }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
