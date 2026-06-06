@@ -18,6 +18,7 @@ import android.os.Build
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.WindowInsets
 import android.view.ViewOutlineProvider
 import android.view.inputmethod.EditorInfo
@@ -81,6 +82,7 @@ import splitties.views.dsl.core.withTheme
 import splitties.views.dsl.core.wrapContent
 import splitties.views.imageDrawable
 import splitties.views.imageResource
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -102,6 +104,7 @@ class InputView(
         private const val FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP = 32
         private const val FLOATING_MOVE_HANDLE_BAR_WIDTH_DP = 92
         private const val FLOATING_MOVE_HANDLE_BAR_HEIGHT_DP = 5
+        private const val FLOATING_MOVE_HANDLE_BAR_GAP_DP = 4
         private const val FLOATING_EXTERNAL_CONTROLS_GAP_DP = 6
         private const val FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP = 40
         private const val FLOATING_DOCK_THRESHOLD_DP = 72
@@ -113,7 +116,7 @@ class InputView(
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
         private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
-        private const val MIN_KEYBOARD_HEIGHT_PERCENT = 10
+        private const val MIN_KEYBOARD_HEIGHT_PERCENT = 24
         private const val MAX_KEYBOARD_HEIGHT_PERCENT = 90
         private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.70f
         private const val FLOATING_PANEL_HEIGHT_SCALE = 0.46f
@@ -121,6 +124,7 @@ class InputView(
         private const val DEFAULT_FLOATING_KEYBOARD_X_RATIO = 0.5f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO = 0.48f
         private const val DEFAULT_FLOATING_KEYBOARD_Y_RATIO_LANDSCAPE = 0.55f
+        private const val FLOATING_MOVE_HANDLE_DOUBLE_TAP_TIMEOUT_MS = 300L
         private const val FLOATING_EDIT_CONTROLS_HIDE_DELAY_MS = 3000L
     }
 
@@ -318,7 +322,10 @@ class InputView(
     private var floatingResizeStartWidth = 0
     private var floatingResizeStartKeyboardHeight = 0
     private var floatingResizeStartWindowHeight = 0
+    private var floatingDragMoved = false
+    private var lastFloatingMoveHandleTapTime = 0L
     private var floatingEditControlsVisible = false
+    private val floatingTouchSlop = ViewConfiguration.get(context).scaledTouchSlop
     private val inputViewLocation = intArrayOf(0, 0)
     private val hideFloatingEditControlsRunnable = Runnable {
         floatingEditControlsVisible = false
@@ -378,11 +385,12 @@ class InputView(
 
     val keyboardView: View
 
-    private val floatingKeyboardDragListener = OnTouchListener { _, event ->
+    private val floatingKeyboardDragListener = OnTouchListener { view, event ->
         if (!floatingKeyboardEnabled) return@OnTouchListener false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
-                showFloatingEditControls()
+                removeCallbacks(hideFloatingEditControlsRunnable)
+                floatingDragMoved = false
                 floatingDragStartRawX = event.rawX
                 floatingDragStartRawY = event.rawY
                 floatingDragStartKeyboardX = floatingKeyboardX
@@ -391,6 +399,12 @@ class InputView(
             }
 
             MotionEvent.ACTION_MOVE -> {
+                if (
+                    abs(event.rawX - floatingDragStartRawX) > floatingTouchSlop ||
+                    abs(event.rawY - floatingDragStartRawY) > floatingTouchSlop
+                ) {
+                    floatingDragMoved = true
+                }
                 updateFloatingKeyboardPosition(
                     floatingDragStartKeyboardX + event.rawX - floatingDragStartRawX,
                     floatingDragStartKeyboardY + event.rawY - floatingDragStartRawY,
@@ -401,7 +415,22 @@ class InputView(
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
                 if (!dockFloatingKeyboardIfNearBottom()) {
-                    scheduleHideFloatingEditControls()
+                    val isMoveHandleTap = view === floatingMoveHandle &&
+                        event.actionMasked == MotionEvent.ACTION_UP &&
+                        !floatingDragMoved
+                    if (isMoveHandleTap) {
+                        val isDoubleTap =
+                            event.eventTime - lastFloatingMoveHandleTapTime <=
+                                FLOATING_MOVE_HANDLE_DOUBLE_TAP_TIMEOUT_MS
+                        lastFloatingMoveHandleTapTime = event.eventTime
+                        if (isDoubleTap) {
+                            showFloatingEditControls()
+                        } else if (floatingEditControlsVisible) {
+                            scheduleHideFloatingEditControls()
+                        }
+                    } else if (floatingEditControlsVisible) {
+                        scheduleHideFloatingEditControls()
+                    }
                 }
                 true
             }
@@ -681,8 +710,9 @@ class InputView(
         if (!floatingKeyboardEnabled) return
         val handleWidth = floatingMoveHandle.width.takeIf { it > 0 } ?: dp(FLOATING_MOVE_HANDLE_TOUCH_WIDTH_DP)
         floatingMoveHandle.translationX = floatingKeyboardX + (keyboardView.width - handleWidth) / 2f
+        val handleVisualOffset = (dp(FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP) - dp(FLOATING_MOVE_HANDLE_BAR_HEIGHT_DP)) / 2f
         floatingMoveHandle.translationY =
-            floatingKeyboardY + keyboardView.height + dp(FLOATING_EXTERNAL_CONTROLS_GAP_DP)
+            floatingKeyboardY + keyboardView.height + dp(FLOATING_MOVE_HANDLE_BAR_GAP_DP) - handleVisualOffset
         floatingMoveHandle.elevation = keyboardView.elevation + 1f
         floatingMoveHandle.bringToFront()
         val resetWidth = resetFloatingKeyboardButton.width.takeIf { it > 0 } ?: dp(68)
