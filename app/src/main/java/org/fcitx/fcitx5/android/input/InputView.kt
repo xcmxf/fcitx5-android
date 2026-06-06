@@ -112,6 +112,7 @@ class InputView(
         private const val FLOATING_KEYBOARD_ELEVATION_DP = 12
         private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 10
         private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
+        private const val FLOATING_CORNER_HANDLE_TOUCH_BAND_DP = 24
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
         private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
@@ -361,6 +362,21 @@ class InputView(
             }
             canvas.drawArc(arc, startAngle, 90f, false, paint)
         }
+
+        fun isResizeTouchActive(event: MotionEvent): Boolean {
+            val band = dp(FLOATING_CORNER_HANDLE_TOUCH_BAND_DP).toFloat()
+            val nearHorizontalEdge = if (horizontalSign < 0) {
+                event.x <= band
+            } else {
+                event.x >= width - band
+            }
+            val nearVerticalEdge = if (verticalSign < 0) {
+                event.y <= band
+            } else {
+                event.y >= height - band
+            }
+            return nearHorizontalEdge || nearVerticalEdge
+        }
     }
 
     private inner class FloatingMoveHandleView(context: android.content.Context) : View(context) {
@@ -429,7 +445,7 @@ class InputView(
                                 FLOATING_MOVE_HANDLE_DOUBLE_TAP_TIMEOUT_MS
                         lastFloatingMoveHandleTapTime = event.eventTime
                         if (isDoubleTap) {
-                            showFloatingEditControls()
+                            toggleFloatingEditControls()
                         } else if (floatingEditControlsVisible) {
                             scheduleHideFloatingEditControls()
                         }
@@ -443,10 +459,13 @@ class InputView(
         }
     }
 
-    private fun floatingKeyboardResizeListener(horizontalSign: Int, verticalSign: Int) = OnTouchListener { _, event ->
+    private fun floatingKeyboardResizeListener(horizontalSign: Int, verticalSign: Int) = OnTouchListener { view, event ->
         if (!floatingKeyboardEnabled) return@OnTouchListener false
         when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                if (view is FloatingCornerHandleView && !view.isResizeTouchActive(event)) {
+                    return@OnTouchListener false
+                }
                 showFloatingEditControls()
                 floatingDragStartRawX = event.rawX
                 floatingDragStartRawY = event.rawY
@@ -864,6 +883,20 @@ class InputView(
         floatingEditControlsVisible = true
         updateFloatingEditOverlaySize()
         updateFloatingEditOverlayPosition()
+    }
+
+    private fun hideFloatingEditControls() {
+        removeCallbacks(hideFloatingEditControlsRunnable)
+        floatingEditControlsVisible = false
+        updateFloatingEditOverlayPosition()
+    }
+
+    private fun toggleFloatingEditControls() {
+        if (floatingEditControlsVisible) {
+            hideFloatingEditControls()
+        } else {
+            showFloatingEditControls()
+        }
     }
 
     private fun scheduleHideFloatingEditControls() {
