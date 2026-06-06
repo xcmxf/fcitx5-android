@@ -571,6 +571,10 @@ class InputView(
             startOfParent()
             topOfParent()
         })
+        add(resetFloatingKeyboardButton, lParams(dp(68), dp(28)) {
+            startOfParent()
+            topOfParent()
+        })
         add(floatingEditOverlay, lParams(floatingKeyboardWidthPx, wrapContent) {
             startOfParent()
             topOfParent()
@@ -672,12 +676,21 @@ class InputView(
 
     private fun updateFloatingMoveHandlePosition() {
         floatingMoveHandle.visibility = if (floatingKeyboardEnabled) VISIBLE else GONE
+        resetFloatingKeyboardButton.visibility =
+            if (floatingKeyboardEnabled && floatingEditControlsVisible) VISIBLE else GONE
         if (!floatingKeyboardEnabled) return
         val handleWidth = floatingMoveHandle.width.takeIf { it > 0 } ?: dp(FLOATING_MOVE_HANDLE_TOUCH_WIDTH_DP)
         floatingMoveHandle.translationX = floatingKeyboardX + (keyboardView.width - handleWidth) / 2f
         floatingMoveHandle.translationY =
             floatingKeyboardY + keyboardView.height + dp(FLOATING_EXTERNAL_CONTROLS_GAP_DP)
         floatingMoveHandle.elevation = keyboardView.elevation + 1f
+        val resetWidth = resetFloatingKeyboardButton.width.takeIf { it > 0 } ?: dp(68)
+        resetFloatingKeyboardButton.translationX =
+            floatingKeyboardX + keyboardView.width - resetWidth -
+                dp(FLOATING_EDIT_OVERLAY_OUTSET_DP + FLOATING_CORNER_HANDLE_SIZE_DP + 6)
+        resetFloatingKeyboardButton.translationY =
+            floatingKeyboardY + keyboardView.height + dp(FLOATING_EXTERNAL_CONTROLS_GAP_DP)
+        resetFloatingKeyboardButton.elevation = keyboardView.elevation + 1f
     }
 
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
@@ -785,14 +798,6 @@ class InputView(
             view.setOnTouchListener(floatingKeyboardResizeListener(horizontalSign, verticalSign))
             floatingEditOverlay.addView(view, params)
         }
-        floatingEditOverlay.addView(
-            resetFloatingKeyboardButton,
-            FrameLayout.LayoutParams(dp(68), dp(28)).apply {
-                gravity = Gravity.END or Gravity.BOTTOM
-                rightMargin = outset + handleSize + dp(6)
-                bottomMargin = outset + dp(6)
-            }
-        )
     }
 
     private fun updateFloatingEditOverlaySize() {
@@ -819,8 +824,7 @@ class InputView(
         floatingEditOverlay.translationX = floatingKeyboardX - outset
         floatingEditOverlay.translationY = floatingKeyboardY - outset
         floatingEditOverlay.elevation = keyboardView.elevation + 1f
-        resetFloatingKeyboardButton.translationY = 0f
-        resetFloatingKeyboardButton.visibility = floatingEditOverlay.visibility
+        updateFloatingMoveHandlePosition()
     }
 
     private fun showFloatingEditControls() {
