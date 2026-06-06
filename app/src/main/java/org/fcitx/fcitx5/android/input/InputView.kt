@@ -63,6 +63,7 @@ import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.above
 import splitties.views.dsl.constraintlayout.below
 import splitties.views.dsl.constraintlayout.bottomOfParent
+import splitties.views.dsl.constraintlayout.bottomToBottomOf
 import splitties.views.dsl.constraintlayout.centerHorizontally
 import splitties.views.dsl.constraintlayout.centerVertically
 import splitties.views.dsl.constraintlayout.constraintLayout
@@ -72,6 +73,7 @@ import splitties.views.dsl.constraintlayout.lParams
 import splitties.views.dsl.constraintlayout.startOfParent
 import splitties.views.dsl.constraintlayout.startToEndOf
 import splitties.views.dsl.constraintlayout.topOfParent
+import splitties.views.dsl.constraintlayout.topToTopOf
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.imageView
 import splitties.views.dsl.core.matchParent
@@ -97,7 +99,6 @@ class InputView(
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
         private const val MIN_FLOATING_KEYBOARD_WIDTH_DP = 320
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
-        private const val FLOATING_MOVE_HANDLE_BOTTOM_MARGIN_DP = 6
         private const val FLOATING_KEYBOARD_SIDE_INSET_DP = 3
         private const val FLOATING_MOVE_HANDLE_WIDTH_DP = 92
         private const val FLOATING_MOVE_HANDLE_HEIGHT_DP = 5
@@ -482,7 +483,7 @@ class InputView(
             })
             add(windowManager.view, lParams {
                 below(kawaiiBar.view)
-                bottomOfParent()
+                above(bottomPaddingSpace)
                 /**
                  * set start and end constrain in [updateKeyboardSize]
                  */
@@ -497,8 +498,8 @@ class InputView(
                 dp(FLOATING_MOVE_HANDLE_HEIGHT_DP)
             ) {
                 centerHorizontally()
-                bottomOfParent()
-                bottomMargin = dp(FLOATING_MOVE_HANDLE_BOTTOM_MARGIN_DP)
+                topToTopOf(bottomPaddingSpace)
+                bottomToBottomOf(bottomPaddingSpace)
             })
             add(resizeHandle, lParams(dp(FLOATING_RESIZE_HANDLE_SIZE_DP), dp(FLOATING_RESIZE_HANDLE_SIZE_DP)) {
                 endOfParent()
