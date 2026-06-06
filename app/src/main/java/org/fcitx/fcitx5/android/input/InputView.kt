@@ -99,19 +99,18 @@ class InputView(
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
         private const val MIN_FLOATING_KEYBOARD_WIDTH_DP = 320
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
-        private const val FLOATING_KEYBOARD_SIDE_INSET_DP = 3
         private const val FLOATING_MOVE_HANDLE_TOUCH_WIDTH_DP = 140
         private const val FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP = 32
         private const val FLOATING_MOVE_HANDLE_BAR_WIDTH_DP = 92
         private const val FLOATING_MOVE_HANDLE_BAR_HEIGHT_DP = 5
-        private const val FLOATING_MOVE_HANDLE_BAR_GAP_DP = 4
+        private const val FLOATING_MOVE_HANDLE_BAR_GAP_DP = 6
         private const val FLOATING_EXTERNAL_CONTROLS_GAP_DP = 6
         private const val FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP = 40
         private const val FLOATING_DOCK_THRESHOLD_DP = 72
         private const val FLOATING_RESIZE_HANDLE_SIZE_DP = 40
         private const val FLOATING_KEYBOARD_CORNER_RADIUS_DP = 28
         private const val FLOATING_KEYBOARD_ELEVATION_DP = 12
-        private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 18
+        private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 10
         private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
@@ -280,9 +279,15 @@ class InputView(
 
     private val floatingKeyboardWidthPx: Int
         get() {
+            val availableWidth = floatingKeyboardAvailableWidthPx
+            val percentWidth = availableWidth * activeFloatingKeyboardWidthPercent.getValue() / 100
+            return max(percentWidth, min(availableWidth, dp(MIN_FLOATING_KEYBOARD_WIDTH_DP)))
+        }
+
+    private val floatingKeyboardAvailableWidthPx: Int
+        get() {
             val parentWidth = width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
-            val percentWidth = parentWidth * activeFloatingKeyboardWidthPercent.getValue() / 100
-            return max(percentWidth, min(parentWidth, dp(MIN_FLOATING_KEYBOARD_WIDTH_DP)))
+            return max(0, parentWidth - keyboardSidePaddingPx * 2)
         }
 
     private val floatingDragHandleHeightPx: Int
@@ -623,11 +628,7 @@ class InputView(
             height = keyboardHeightPx
         }
         bottomPaddingSpace.updateLayoutParams<LayoutParams> {
-            height = if (floatingKeyboardEnabled) {
-                0
-            } else {
-                keyboardBottomPaddingPx
-            }
+            height = keyboardBottomPaddingPx
             bottomMargin = if (floatingKeyboardEnabled) 0 else navBarBottomInset
         }
         val sidePadding = keyboardSidePaddingPx
@@ -637,8 +638,7 @@ class InputView(
             floatingMoveHandle.visibility = VISIBLE
             resizeHandle.visibility = GONE
             windowManager.view.translationY = 0f
-            val floatingSideInset = dp(FLOATING_KEYBOARD_SIDE_INSET_DP)
-            windowManager.view.setPadding(floatingSideInset, 0, floatingSideInset, 0)
+            windowManager.view.setPadding(sidePadding, 0, sidePadding, 0)
             windowManager.view.updateLayoutParams<LayoutParams> {
                 startToEnd = unset
                 endToStart = unset
@@ -885,7 +885,7 @@ class InputView(
 
     private fun restoreFloatingKeyboardPosition() {
         if (!floatingKeyboardEnabled || width <= 0 || keyboardView.width <= 0) return
-        val maxX = max(0, width - keyboardView.width).toFloat()
+        val maxX = max(0, floatingKeyboardAvailableWidthPx - keyboardView.width).toFloat()
         val maxY = max(0, height - navBarBottomInset - keyboardView.height).toFloat()
         val x = maxX * activeFloatingKeyboardXRatio.getValue().coerceIn(0f, 1f)
         val y = maxY * activeFloatingKeyboardYRatio.getValue().coerceIn(0f, 1f)
@@ -894,7 +894,7 @@ class InputView(
 
     private fun updateFloatingKeyboardPosition(x: Float, y: Float, persist: Boolean = false) {
         if (!floatingKeyboardEnabled) return
-        val maxX = max(0, width - keyboardView.width).toFloat()
+        val maxX = max(0, floatingKeyboardAvailableWidthPx - keyboardView.width).toFloat()
         val maxY = max(0, height - navBarBottomInset - keyboardView.height).toFloat()
         floatingKeyboardX = min(max(x, 0f), maxX)
         floatingKeyboardY = min(max(y, 0f), maxY)
