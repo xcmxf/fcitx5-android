@@ -215,7 +215,7 @@ class InputView(
 
     private val focusChangeResetKeyboard by keyboardPrefs.focusChangeResetKeyboard
 
-    private var floatingKeyboardEnabled by keyboardPrefs.floatingKeyboardEnabled
+    private var floatingKeyboardEnabled = keyboardPrefs.floatingKeyboardEnabled.getValue()
     private val keyboardHeightPercent = keyboardPrefs.keyboardHeightPercent
     private val keyboardHeightPercentLandscape = keyboardPrefs.keyboardHeightPercentLandscape
     private val keyboardSidePadding = keyboardPrefs.keyboardSidePadding
@@ -398,7 +398,7 @@ class InputView(
     @Keep
     private val onKeyboardSizeChangeListener = ManagedPreferenceProvider.OnChangeListener { key ->
         if (keyboardPrefs.floatingKeyboardEnabled.key == key) {
-            setFloatingKeyboardEnabled(keyboardPrefs.floatingKeyboardEnabled.getValue(), persist = false)
+            setFloatingKeyboardFeatureEnabled(keyboardPrefs.floatingKeyboardEnabled.getValue(), persist = false)
         } else if (keyboardSizePrefs.any { it.key == key }) {
             updateKeyboardSize()
         }
@@ -791,18 +791,21 @@ class InputView(
         }
     }
 
-    private fun setFloatingKeyboardEnabled(enabled: Boolean, persist: Boolean = true) {
-        if (floatingKeyboardEnabled == enabled) {
-            if (persist && keyboardPrefs.floatingKeyboardEnabled.getValue() != enabled) {
-                keyboardPrefs.floatingKeyboardEnabled.setValue(enabled)
-            }
+    private fun setFloatingKeyboardActive(enabled: Boolean) {
+        val active = enabled && keyboardPrefs.floatingKeyboardEnabled.getValue()
+        if (floatingKeyboardEnabled == active) {
             applyKeyboardMode()
             return
         }
-        if (persist) {
+        floatingKeyboardEnabled = active
+        applyKeyboardMode()
+    }
+
+    private fun setFloatingKeyboardFeatureEnabled(enabled: Boolean, persist: Boolean = true) {
+        if (persist && keyboardPrefs.floatingKeyboardEnabled.getValue() != enabled) {
             keyboardPrefs.floatingKeyboardEnabled.setValue(enabled)
         }
-        applyKeyboardMode()
+        setFloatingKeyboardActive(enabled)
     }
 
     private fun updateFloatingKeyboardChrome() {
@@ -951,7 +954,7 @@ class InputView(
         removeCallbacks(hideFloatingEditControlsRunnable)
         keyboardView.translationX = 0f
         keyboardView.translationY = 0f
-        setFloatingKeyboardEnabled(false)
+        setFloatingKeyboardActive(false)
         return true
     }
 
@@ -985,10 +988,12 @@ class InputView(
     }
 
     fun toggleFloatingKeyboard() {
-        setFloatingKeyboardEnabled(!floatingKeyboardEnabled)
+        setFloatingKeyboardActive(!floatingKeyboardEnabled)
     }
 
     fun isFloatingKeyboardEnabled() = floatingKeyboardEnabled
+
+    fun isFloatingKeyboardFeatureEnabled() = keyboardPrefs.floatingKeyboardEnabled.getValue()
 
     /**
      * called when [InputView] is about to show, or restart
