@@ -159,13 +159,13 @@ class InputView(
     private val resetFloatingKeyboardButton = textView {
         text = context.getString(R.string.reset)
         gravity = Gravity.CENTER
-        setTextColor(theme.altKeyTextColor)
+        setTextColor(Color.WHITE)
         textSize = 12f
         includeFontPadding = false
         background = GradientDrawable().apply {
             shape = GradientDrawable.RECTANGLE
             cornerRadius = dp(14).toFloat()
-            setColor(theme.altKeyBackgroundColor.alpha(0.86f))
+            setColor(theme.genericActiveBackgroundColor.alpha(0.92f))
         }
         setOnClickListener { resetFloatingKeyboardLayout() }
     }
@@ -687,8 +687,7 @@ class InputView(
         floatingMoveHandle.bringToFront()
         val resetWidth = resetFloatingKeyboardButton.width.takeIf { it > 0 } ?: dp(68)
         resetFloatingKeyboardButton.translationX =
-            floatingKeyboardX + keyboardView.width - resetWidth -
-                dp(FLOATING_EDIT_OVERLAY_OUTSET_DP + FLOATING_CORNER_HANDLE_SIZE_DP + 6)
+            floatingKeyboardX + keyboardView.width - resetWidth - dp(24)
         resetFloatingKeyboardButton.translationY =
             floatingKeyboardY + keyboardView.height + dp(FLOATING_EXTERNAL_CONTROLS_GAP_DP)
         resetFloatingKeyboardButton.elevation = keyboardView.elevation + 1f
