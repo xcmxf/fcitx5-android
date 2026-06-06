@@ -63,7 +63,6 @@ import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.above
 import splitties.views.dsl.constraintlayout.below
 import splitties.views.dsl.constraintlayout.bottomOfParent
-import splitties.views.dsl.constraintlayout.bottomToBottomOf
 import splitties.views.dsl.constraintlayout.centerHorizontally
 import splitties.views.dsl.constraintlayout.centerVertically
 import splitties.views.dsl.constraintlayout.constraintLayout
@@ -73,7 +72,6 @@ import splitties.views.dsl.constraintlayout.lParams
 import splitties.views.dsl.constraintlayout.startOfParent
 import splitties.views.dsl.constraintlayout.startToEndOf
 import splitties.views.dsl.constraintlayout.topOfParent
-import splitties.views.dsl.constraintlayout.topToTopOf
 import splitties.views.dsl.core.add
 import splitties.views.dsl.core.imageView
 import splitties.views.dsl.core.matchParent
@@ -102,6 +100,8 @@ class InputView(
         private const val FLOATING_KEYBOARD_SIDE_INSET_DP = 3
         private const val FLOATING_MOVE_HANDLE_WIDTH_DP = 92
         private const val FLOATING_MOVE_HANDLE_HEIGHT_DP = 5
+        private const val FLOATING_EXTERNAL_CONTROLS_GAP_DP = 6
+        private const val FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP = 40
         private const val FLOATING_DOCK_THRESHOLD_DP = 72
         private const val FLOATING_RESIZE_HANDLE_SIZE_DP = 40
         private const val FLOATING_KEYBOARD_CORNER_RADIUS_DP = 28
@@ -483,7 +483,7 @@ class InputView(
             })
             add(windowManager.view, lParams {
                 below(kawaiiBar.view)
-                above(bottomPaddingSpace)
+                bottomOfParent()
                 /**
                  * set start and end constrain in [updateKeyboardSize]
                  */
@@ -492,14 +492,6 @@ class InputView(
                 startToEndOf(leftPaddingSpace)
                 endToStartOf(rightPaddingSpace)
                 bottomOfParent()
-            })
-            add(floatingMoveHandle, lParams(
-                dp(FLOATING_MOVE_HANDLE_WIDTH_DP),
-                dp(FLOATING_MOVE_HANDLE_HEIGHT_DP)
-            ) {
-                centerHorizontally()
-                topToTopOf(bottomPaddingSpace)
-                bottomToBottomOf(bottomPaddingSpace)
             })
             add(resizeHandle, lParams(dp(FLOATING_RESIZE_HANDLE_SIZE_DP), dp(FLOATING_RESIZE_HANDLE_SIZE_DP)) {
                 endOfParent()
@@ -528,6 +520,13 @@ class InputView(
                 bottomOfParent()
             })
         }
+        add(floatingMoveHandle, lParams(
+            dp(FLOATING_MOVE_HANDLE_WIDTH_DP),
+            dp(FLOATING_MOVE_HANDLE_HEIGHT_DP)
+        ) {
+            startOfParent()
+            topOfParent()
+        })
         add(floatingEditOverlay, lParams(floatingKeyboardWidthPx, wrapContent) {
             startOfParent()
             topOfParent()
@@ -548,7 +547,7 @@ class InputView(
         }
         bottomPaddingSpace.updateLayoutParams<LayoutParams> {
             height = if (floatingKeyboardEnabled) {
-                floatingDragHandleHeightPx
+                0
             } else {
                 keyboardBottomPaddingPx
             }
@@ -627,6 +626,16 @@ class InputView(
         service.window.window?.decorView?.requestLayout()
     }
 
+    private fun updateFloatingMoveHandlePosition() {
+        floatingMoveHandle.visibility = if (floatingKeyboardEnabled) VISIBLE else GONE
+        if (!floatingKeyboardEnabled) return
+        val handleWidth = floatingMoveHandle.width.takeIf { it > 0 } ?: dp(FLOATING_MOVE_HANDLE_WIDTH_DP)
+        floatingMoveHandle.translationX = floatingKeyboardX + (keyboardView.width - handleWidth) / 2f
+        floatingMoveHandle.translationY =
+            floatingKeyboardY + keyboardView.height + dp(FLOATING_EXTERNAL_CONTROLS_GAP_DP)
+        floatingMoveHandle.elevation = keyboardView.elevation + 1f
+    }
+
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         navBarBottomInset = getNavBarBottomInset(insets)
         bottomPaddingSpace.updateLayoutParams<LayoutParams> {
@@ -700,6 +709,7 @@ class InputView(
             floatingEditControlsVisible = false
             removeCallbacks(hideFloatingEditControlsRunnable)
         }
+        updateFloatingMoveHandlePosition()
         updateFloatingEditOverlayPosition()
         keyboardView.invalidateOutline()
     }
@@ -759,6 +769,7 @@ class InputView(
         floatingEditOverlay.translationX = floatingKeyboardX - outset
         floatingEditOverlay.translationY = floatingKeyboardY - outset
         floatingEditOverlay.elevation = keyboardView.elevation + 1f
+        resetFloatingKeyboardButton.translationY = dp(FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP).toFloat()
         resetFloatingKeyboardButton.visibility = if (
             floatingEditOverlay.visibility == VISIBLE &&
             floatingKeyboardWidthPx >= dp(FLOATING_RESET_BUTTON_MIN_WIDTH_DP) &&
@@ -812,6 +823,7 @@ class InputView(
         floatingKeyboardY = min(max(y, 0f), maxY)
         keyboardView.translationX = floatingKeyboardX
         keyboardView.translationY = floatingKeyboardY
+        updateFloatingMoveHandlePosition()
         updateFloatingEditOverlaySize()
         updateFloatingEditOverlayPosition()
         if (persist) {
@@ -839,11 +851,12 @@ class InputView(
         }
         keyboardView.getLocationInWindow(inputViewLocation)
         val outset = dp(FLOATING_EDIT_OVERLAY_OUTSET_DP)
+        val bottomOutset = dp(FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP + FLOATING_EDIT_OVERLAY_OUTSET_DP)
         outRect.set(
             inputViewLocation[0] - outset,
             inputViewLocation[1] - outset,
             inputViewLocation[0] + keyboardView.width + outset,
-            inputViewLocation[1] + keyboardView.height + outset
+            inputViewLocation[1] + keyboardView.height + bottomOutset
         )
         return true
     }
