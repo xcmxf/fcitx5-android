@@ -112,7 +112,7 @@ class InputView(
         private const val FLOATING_KEYBOARD_ELEVATION_DP = 12
         private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 10
         private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
-        private const val FLOATING_CORNER_HANDLE_TOUCH_BAND_DP = 24
+        private const val FLOATING_CORNER_HANDLE_TOUCH_BAND_DP = 18
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
         private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
