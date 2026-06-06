@@ -317,7 +317,6 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
                 }
                 floatingKeyboardButton.setOnClickListener {
                     inputView.toggleFloatingKeyboard()
-                    updateFloatingKeyboardButton()
                 }
                 moreButton.setOnClickListener {
                     windowManager.attachWindow(StatusAreaWindow())

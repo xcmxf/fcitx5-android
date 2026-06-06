@@ -97,7 +97,7 @@ class InputView(
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
         private const val MIN_FLOATING_KEYBOARD_WIDTH_DP = 320
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
-        private const val FLOATING_BOTTOM_CONTROLS_HEIGHT_DP = 14
+        private const val FLOATING_MOVE_HANDLE_BOTTOM_MARGIN_DP = 6
         private const val FLOATING_KEYBOARD_SIDE_INSET_DP = 3
         private const val FLOATING_MOVE_HANDLE_WIDTH_DP = 92
         private const val FLOATING_MOVE_HANDLE_HEIGHT_DP = 5
@@ -347,7 +347,7 @@ class InputView(
     @Keep
     private val onKeyboardSizeChangeListener = ManagedPreferenceProvider.OnChangeListener { key ->
         if (keyboardPrefs.floatingKeyboardEnabled.key == key) {
-            applyKeyboardMode()
+            setFloatingKeyboardEnabled(keyboardPrefs.floatingKeyboardEnabled.getValue(), persist = false)
         } else if (keyboardSizePrefs.any { it.key == key }) {
             updateKeyboardSize()
         }
@@ -482,7 +482,7 @@ class InputView(
             })
             add(windowManager.view, lParams {
                 below(kawaiiBar.view)
-                above(bottomPaddingSpace)
+                bottomOfParent()
                 /**
                  * set start and end constrain in [updateKeyboardSize]
                  */
@@ -498,7 +498,7 @@ class InputView(
             ) {
                 centerHorizontally()
                 bottomOfParent()
-                bottomMargin = dp(10)
+                bottomMargin = dp(FLOATING_MOVE_HANDLE_BOTTOM_MARGIN_DP)
             })
             add(resizeHandle, lParams(dp(FLOATING_RESIZE_HANDLE_SIZE_DP), dp(FLOATING_RESIZE_HANDLE_SIZE_DP)) {
                 endOfParent()
@@ -545,12 +545,13 @@ class InputView(
         windowManager.view.updateLayoutParams {
             height = keyboardHeightPx
         }
-        bottomPaddingSpace.updateLayoutParams {
+        bottomPaddingSpace.updateLayoutParams<LayoutParams> {
             height = if (floatingKeyboardEnabled) {
-                dp(FLOATING_BOTTOM_CONTROLS_HEIGHT_DP)
+                floatingDragHandleHeightPx
             } else {
                 keyboardBottomPaddingPx
             }
+            bottomMargin = if (floatingKeyboardEnabled) 0 else navBarBottomInset
         }
         val sidePadding = keyboardSidePaddingPx
         if (floatingKeyboardEnabled) {
@@ -572,6 +573,7 @@ class InputView(
                 endToStart = unset
                 startOfParent()
                 endOfParent()
+                bottomMargin = 0
             }
         } else if (sidePadding == 0) {
             // hide side padding space views when unnecessary
@@ -627,7 +629,7 @@ class InputView(
     override fun onApplyWindowInsets(insets: WindowInsets): WindowInsets {
         navBarBottomInset = getNavBarBottomInset(insets)
         bottomPaddingSpace.updateLayoutParams<LayoutParams> {
-            bottomMargin = navBarBottomInset
+            bottomMargin = if (floatingKeyboardEnabled) 0 else navBarBottomInset
         }
         if (floatingKeyboardEnabled) {
             keyboardView.post {
@@ -670,6 +672,20 @@ class InputView(
         if (floatingKeyboardEnabled) {
             keyboardView.post { restoreFloatingKeyboardPosition() }
         }
+    }
+
+    private fun setFloatingKeyboardEnabled(enabled: Boolean, persist: Boolean = true) {
+        if (floatingKeyboardEnabled == enabled) {
+            if (persist && keyboardPrefs.floatingKeyboardEnabled.getValue() != enabled) {
+                keyboardPrefs.floatingKeyboardEnabled.setValue(enabled)
+            }
+            applyKeyboardMode()
+            return
+        }
+        if (persist) {
+            keyboardPrefs.floatingKeyboardEnabled.setValue(enabled)
+        }
+        applyKeyboardMode()
     }
 
     private fun updateFloatingKeyboardChrome() {
@@ -808,12 +824,11 @@ class InputView(
         if (!floatingKeyboardEnabled || height <= 0 || keyboardView.height <= 0) return false
         val dockY = height - navBarBottomInset - keyboardView.height
         if (dockY - floatingKeyboardY > dp(FLOATING_DOCK_THRESHOLD_DP)) return false
-        floatingKeyboardEnabled = false
         floatingEditControlsVisible = false
         removeCallbacks(hideFloatingEditControlsRunnable)
         keyboardView.translationX = 0f
         keyboardView.translationY = 0f
-        applyKeyboardMode()
+        setFloatingKeyboardEnabled(false)
         return true
     }
 
@@ -842,8 +857,7 @@ class InputView(
     }
 
     fun toggleFloatingKeyboard() {
-        floatingKeyboardEnabled = !floatingKeyboardEnabled
-        applyKeyboardMode()
+        setFloatingKeyboardEnabled(!floatingKeyboardEnabled)
     }
 
     fun isFloatingKeyboardEnabled() = floatingKeyboardEnabled
