@@ -11,7 +11,9 @@ import android.content.pm.ActivityInfo
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.graphics.Color
+import android.graphics.PixelFormat
 import android.graphics.Rect
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Icon
 import android.os.Build
 import android.os.Bundle
@@ -166,6 +168,28 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         return newCandidatesView
     }
 
+    private fun configureTransparentImeWindow(win: Window) {
+        win.attributes = win.attributes.apply {
+            format = PixelFormat.TRANSLUCENT
+            dimAmount = 0f
+        }
+        win.setFormat(PixelFormat.TRANSLUCENT)
+        win.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        win.clearFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        win.setDimAmount(0f)
+        win.decorView.setBackgroundColor(Color.TRANSPARENT)
+        if (::contentView.isInitialized) {
+            contentView.setBackgroundColor(Color.TRANSPARENT)
+            intArrayOf(
+                android.R.id.inputArea,
+                android.R.id.candidatesArea,
+                android.R.id.extractArea
+            ).forEach { id ->
+                contentView.findViewById<View>(id)?.setBackgroundColor(Color.TRANSPARENT)
+            }
+        }
+    }
+
     private fun replaceInputViews(theme: Theme) {
         navbarMgr.evaluate(window.window!!, inputDeviceMgr.isVirtualKeyboard)
         replaceInputView(theme)
@@ -203,6 +227,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
     }
 
     override fun onCreate() {
+        setTheme(R.style.Theme_FcitxInputMethod)
         fcitx = FcitxDaemon.connect(javaClass.name)
         lifecycleScope.launch {
             jobs.consumeEach { it.join() }
@@ -226,6 +251,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         super.onCreate()
         decorView = window.window!!.decorView
         contentView = decorView.findViewById(android.R.id.content)
+        configureTransparentImeWindow(window.window!!)
         lastKnownConfig = resources.configuration
     }
 
@@ -592,9 +618,12 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
         view.updateLayoutParams<ViewGroup.LayoutParams> {
             height = ViewGroup.LayoutParams.MATCH_PARENT
         }
+        configureTransparentImeWindow(window.window!!)
+        view.setBackgroundColor(Color.TRANSPARENT)
     }
 
     override fun onConfigureWindow(win: Window, isFullscreen: Boolean, isCandidatesOnly: Boolean) {
+        configureTransparentImeWindow(win)
         win.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
     }
 
@@ -610,7 +639,7 @@ class FcitxInputMethodService : LifecycleInputMethodService() {
                 val h = decorView.height - n
                 outInsets.apply {
                     contentTopInsets = h
-                    visibleTopInsets = floatingKeyboardTouchableRect.top
+                    visibleTopInsets = h
                     touchableInsets = Insets.TOUCHABLE_INSETS_REGION
                     touchableRegion.set(floatingKeyboardTouchableRect)
                 }
