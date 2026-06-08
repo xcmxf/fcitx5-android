@@ -44,7 +44,7 @@ class ButtonsBarUi(override val ctx: Context, private val theme: Theme) : Ui {
         contentDescription = ctx.getString(R.string.clipboard)
     }
 
-    val floatingKeyboardButton = toolButton(R.drawable.ic_keyboard_float_24).apply {
+    val floatingKeyboardButton = toolButton(R.drawable.ic_baseline_open_in_full_24).apply {
         contentDescription = ctx.getString(R.string.float_keyboard)
     }
 

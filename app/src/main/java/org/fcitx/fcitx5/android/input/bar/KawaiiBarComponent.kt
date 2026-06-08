@@ -352,10 +352,10 @@ class KawaiiBarComponent : UniqueViewComponent<KawaiiBarComponent, FrameLayout>(
         idleUi.buttonsUi.floatingKeyboardButton.apply {
             visibility = if (inputView.isFloatingKeyboardFeatureEnabled()) View.VISIBLE else View.GONE
             if (inputView.isFloatingKeyboardEnabled()) {
-                setIcon(R.drawable.ic_keyboard_dock_24)
+                setIcon(R.drawable.ic_baseline_open_in_full_24)
                 contentDescription = context.getString(R.string.dock_keyboard)
             } else {
-                setIcon(R.drawable.ic_keyboard_float_24)
+                setIcon(R.drawable.ic_baseline_open_in_full_24)
                 contentDescription = context.getString(R.string.float_keyboard)
             }
         }
