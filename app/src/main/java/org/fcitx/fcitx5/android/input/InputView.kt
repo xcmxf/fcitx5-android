@@ -99,6 +99,8 @@ class InputView(
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
         private const val MIN_FLOATING_KEYBOARD_WIDTH_DP = 320
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
+        private const val FLOATING_MOVE_HANDLE_TOUCH_WIDTH_DP = 140
+        private const val FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP = 32
         private const val FLOATING_MOVE_HANDLE_BAR_WIDTH_DP = 92
         private const val FLOATING_MOVE_HANDLE_BAR_HEIGHT_DP = 5
         private const val FLOATING_MOVE_HANDLE_BAR_GAP_DP = 6
@@ -117,10 +119,10 @@ class InputView(
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
         private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
-        private const val FLOATING_DOCK_TARGET_HEIGHT_DP = 48
-        private const val FLOATING_DOCK_TARGET_HORIZONTAL_MARGIN_DP = 40
+        private const val FLOATING_DOCK_TARGET_HEIGHT_DP = FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP
+        private const val FLOATING_DOCK_TARGET_HORIZONTAL_MARGIN_DP = 0
         private const val FLOATING_DOCK_TARGET_BOTTOM_MARGIN_DP = 4
-        private const val FLOATING_DOCK_TARGET_CORNER_RADIUS_DP = 24
+        private const val FLOATING_DOCK_TARGET_CORNER_RADIUS_DP = FLOATING_DOCK_TARGET_HEIGHT_DP / 2
         private const val MIN_KEYBOARD_HEIGHT_PERCENT = 24
         private const val MAX_KEYBOARD_HEIGHT_PERCENT = 90
         private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.70f
@@ -665,8 +667,8 @@ class InputView(
             })
         }
         add(floatingMoveHandle, lParams(
-            matchParent,
-            dp(FLOATING_MOVE_HANDLE_BAR_HEIGHT_DP)
+            dp(FLOATING_MOVE_HANDLE_TOUCH_WIDTH_DP),
+            dp(FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP)
         ) {
             startOfParent()
             topOfParent()
@@ -791,9 +793,11 @@ class InputView(
         resetFloatingKeyboardButton.visibility =
             if (floatingKeyboardEnabled && floatingEditControlsVisible) VISIBLE else GONE
         if (!floatingKeyboardEnabled) return
-        floatingMoveHandle.translationX = 0f
+        val handleWidth = floatingMoveHandle.width.takeIf { it > 0 } ?: dp(FLOATING_MOVE_HANDLE_TOUCH_WIDTH_DP)
+        floatingMoveHandle.translationX = floatingKeyboardX + (keyboardView.width - handleWidth) / 2f
+        val handleVisualOffset = (dp(FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP) - dp(FLOATING_MOVE_HANDLE_BAR_HEIGHT_DP)) / 2f
         floatingMoveHandle.translationY =
-            floatingKeyboardY + keyboardView.height + dp(FLOATING_MOVE_HANDLE_BAR_GAP_DP)
+            floatingKeyboardY + keyboardView.height + dp(FLOATING_MOVE_HANDLE_BAR_GAP_DP) - handleVisualOffset
         floatingMoveHandle.elevation = keyboardView.elevation + 1f
         floatingMoveHandle.bringToFront()
         val resetWidth = resetFloatingKeyboardButton.width.takeIf { it > 0 } ?: dp(68)
@@ -1112,7 +1116,7 @@ class InputView(
         val bottomOutset = if (floatingEditControlsVisible) {
             dp(FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP + FLOATING_EDIT_OVERLAY_OUTSET_DP)
         } else {
-            dp(FLOATING_MOVE_HANDLE_BAR_GAP_DP + FLOATING_MOVE_HANDLE_BAR_HEIGHT_DP)
+            dp(FLOATING_MOVE_HANDLE_BAR_GAP_DP + FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP)
         }
         outRect.set(
             inputViewLocation[0] - outset,
