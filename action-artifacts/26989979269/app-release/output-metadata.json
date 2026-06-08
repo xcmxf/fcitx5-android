@@ -1,0 +1,26 @@
+{
+  "version": 3,
+  "artifactType": {
+    "type": "APK",
+    "kind": "Directory"
+  },
+  "applicationId": "org.fcitx.fcitx5.android",
+  "variantName": "release",
+  "elements": [
+    {
+      "type": "ONE_OF_MANY",
+      "filters": [
+        {
+          "filterType": "ABI",
+          "value": "x86_64"
+        }
+      ],
+      "attributes": [],
+      "versionCode": 104,
+      "versionName": "34941a63",
+      "outputFile": "org.fcitx.fcitx5.android-34941a63-x86_64-release-unsigned.apk"
+    }
+  ],
+  "elementType": "File",
+  "minSdkVersionForDexing": 23
+}

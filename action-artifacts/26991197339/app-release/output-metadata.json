@@ -1,0 +1,26 @@
+{
+  "version": 3,
+  "artifactType": {
+    "type": "APK",
+    "kind": "Directory"
+  },
+  "applicationId": "org.fcitx.fcitx5.android",
+  "variantName": "release",
+  "elements": [
+    {
+      "type": "ONE_OF_MANY",
+      "filters": [
+        {
+          "filterType": "ABI",
+          "value": "x86_64"
+        }
+      ],
+      "attributes": [],
+      "versionCode": 104,
+      "versionName": "889201c7",
+      "outputFile": "org.fcitx.fcitx5.android-889201c7-x86_64-release-unsigned.apk"
+    }
+  ],
+  "elementType": "File",
+  "minSdkVersionForDexing": 23
+}

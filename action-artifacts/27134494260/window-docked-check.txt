@@ -1,0 +1,45 @@
+74:      Window #0: WindowStateAnimator{c8a7bbe com.android.systemui.wallpapers.ImageWallpaper}
+75:      Window #1: WindowStateAnimator{b9ec41f com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}
+76:      Window #2: WindowStateAnimator{155236c com.android.settings/com.android.settings.homepage.SettingsHomepageActivity}
+77:      Window #3: WindowStateAnimator{3932d35 com.google.android.settings.intelligence/com.google.android.settings.intelligence.modules.search.SearchActivity}
+78:      Window #4: WindowStateAnimator{96e95ca InputMethod}
+79:      Window #5: WindowStateAnimator{9f5833b ShellDropTarget}
+80:      Window #6: WindowStateAnimator{6270a58 StatusBar}
+81:      Window #7: WindowStateAnimator{bd667b1 NotificationShade}
+82:      Window #8: WindowStateAnimator{1c84496 Taskbar}
+83:      Window #9: WindowStateAnimator{92f1817 EdgeBackGestureHandler0}
+84:      Window #10: WindowStateAnimator{b2e7404 ScreenDecorOverlay}
+85:      Window #11: WindowStateAnimator{938cded ScreenDecorOverlayBottom}
+97:    numWindow=1 mCanAddInternalSystemWindow=false mAlertWindows={} mClientDead=false    mPackageName=org.fcitx.fcitx5.android
+107:  overrideConfig={1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long compactNeeded port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.9 fontWeightAdjustment=0}
+178:      overrideConfig={0.0 ?mcc0mnc ?localeList ?layoutDir ?swdp ?wdp ?hdp ?density ?lsize ?long ?round ?ldr ?wideColorGamut ?orien ?uimode ?night ?touch ?keyb/?/? ?nav/? winConfig={ mBounds=Rect(0, 0 - 0, 0) mAppBounds=null mMaxBounds=Rect(0, 0 - 0, 0) mDisplayRotation=undefined mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=undefined} ?fontWeightAdjustment}
+303:        InsetsSource id=b8af0001 type=navigationBars frame=[0,2337][1080,2400] visible=true flags=SUPPRESS_SCRIM|ANIMATE_RESIZING sideHint=BOTTOM boundingRects=null
+317:        InsetsSourceControl: {b8af0001 mType=navigationBars initiallyVisible mSurfacePosition=Point(0, 2337) mInsetsHint=Insets{left=0, top=0, right=0, bottom=63}}
+341:        mControl=InsetsSourceControl mId=3 mType=ime mLeash=Surface(name=Surface(name=744d841 InputMethod#104)/@0x1c56672 - animation-leash of insets_animation#131)/@0x706f30f mInitiallyVisible=false mSurfacePosition=Point(0, 63) mInsetsHint=Insets{left=0, top=0, right=0, bottom=126} mSkipAnimationOnce=false mImeStatsToken=android.view.inputmethod.ImeTracker$Token@89e3f9c(tag: system_server:5fd7738a)
+344:        mWin=Window{744d841 u0 InputMethod}
+345:        mAdapter=ControlAdapter mCapturedLeash=Surface(name=Surface(name=744d841 InputMethod#104)/@0x1c56672 - animation-leash of insets_animation#131)/@0x706f30f
+370:        mSource=InsetsSource id=b8af0001 type=navigationBars frame=[0,2337][1080,2400] visible=true flags=SUPPRESS_SCRIM|ANIMATE_RESIZING sideHint=BOTTOM boundingRects=null
+372:        mControl=InsetsSourceControl mId=b8af0001 mType=navigationBars mLeash=Surface(name=Surface(name=d294139 Taskbar#71)/@0x474de71 - animation-leash of insets_animation#134)/@0x16acda5 mInitiallyVisible=true mSurfacePosition=Point(0, 2337) mInsetsHint=Insets{left=0, top=0, right=0, bottom=63} mSkipAnimationOnce=false mImeStatsToken=null
+404:  Window #0 Window{4c2c798 u0 ScreenDecorOverlayBottom}:
+423:  Window #1 Window{d3f0f92 u0 ScreenDecorOverlay}:
+442:  Window #2 Window{3c6d42 u0 EdgeBackGestureHandler0}:
+460:  Window #3 Window{d294139 u0 Taskbar}:
+468:        InsetsFrameProvider: {id=#b8af0001, index=0, type=navigationBars, source=FRAME, flags=[SUPPRESS_SCRIM], insetsSize=Insets{left=0, top=0, right=0, bottom=63}}
+481:            InsetsFrameProvider: {id=#e1de0001, index=0, type=navigationBars, source=FRAME, flags=[SUPPRESS_SCRIM|ANIMATE_RESIZING], insetsSize=Insets{left=0, top=0, right=0, bottom=63}}
+493:            InsetsFrameProvider: {id=#e1de0001, index=0, type=navigationBars, source=FRAME, flags=[SUPPRESS_SCRIM|ANIMATE_RESIZING], insetsSize=Insets{left=0, top=0, right=0, bottom=63}}
+505:            InsetsFrameProvider: {id=#e1de0001, index=0, type=navigationBars, source=FRAME, flags=[SUPPRESS_SCRIM|ANIMATE_RESIZING], insetsSize=Insets{left=0, top=0, right=0, bottom=63}}
+517:            InsetsFrameProvider: {id=#e1de0001, index=0, type=navigationBars, source=FRAME, flags=[SUPPRESS_SCRIM|ANIMATE_RESIZING], insetsSize=Insets{left=0, top=0, right=0, bottom=63}}
+536:  Window #4 Window{3c318f u0 NotificationShade}:
+553:  Window #5 Window{5fa1123 u0 StatusBar}:
+619:  Window #6 Window{2a08478 u0 ShellDropTarget}:
+637:  Window #7 Window{744d841 u0 InputMethod}:
+639:    mOwnerUid=10225 showForAllUsers=false package=org.fcitx.fcitx5.android appop=NONE
+645:      fitTypes=statusBars navigationBars
+653:      mLeash=Surface(name=Surface(name=744d841 InputMethod#104)/@0x1c56672 - animation-leash of insets_animation#131)/@0x706f30f mAnimationType=insets_animation
+655:        ControlAdapter mCapturedLeash=Surface(name=Surface(name=744d841 InputMethod#104)/@0x1c56672 - animation-leash of insets_animation#131)/@0x706f30f
+656:    WindowStateAnimator{96e95ca InputMethod}:
+662:  Window #8 Window{7079f74 u0 com.google.android.settings.intelligence/com.google.android.settings.intelligence.modules.search.SearchActivity}:
+682:  Window #9 Window{e6568b2 u0 com.android.settings/com.android.settings.homepage.SettingsHomepageActivity}:
+702:  Window #10 Window{95bd372 u0 com.google.android.apps.nexuslauncher/com.google.android.apps.nexuslauncher.NexusLauncherActivity}:
+724:  Window #11 Window{45bcdaa u0 com.android.systemui.wallpapers.ImageWallpaper}:
+747:  mGlobalConfiguration={1.0 310mcc260mnc [en_US] ldltr sw411dp w411dp h914dp 420dpi nrml long compactNeeded port finger qwerty/v/v dpad/v winConfig={ mBounds=Rect(0, 0 - 1080, 2400) mAppBounds=Rect(0, 0 - 1080, 2400) mMaxBounds=Rect(0, 0 - 1080, 2400) mDisplayRotation=ROTATION_0 mWindowingMode=fullscreen mActivityType=undefined mAlwaysOnTop=undefined mRotation=ROTATION_0} s.9 fontWeightAdjustment=0}
