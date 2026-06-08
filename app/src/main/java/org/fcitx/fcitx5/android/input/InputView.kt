@@ -109,6 +109,8 @@ class InputView(
         private const val FLOATING_DOCK_THRESHOLD_DP = 72
         private const val FLOATING_RESIZE_HANDLE_SIZE_DP = 40
         private const val FLOATING_KEYBOARD_CORNER_RADIUS_DP = 28
+        private const val FLOATING_KEYBOARD_SIDE_CONTENT_PADDING_DP = 6
+        private const val FLOATING_KEYBOARD_BOTTOM_CONTENT_PADDING_DP = 10
         private const val FLOATING_KEYBOARD_ELEVATION_DP = 12
         private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 10
         private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
@@ -239,10 +241,7 @@ class InputView(
 
     private val keyboardHeightPx: Int
         get() {
-            val percent = when (resources.configuration.orientation) {
-                Configuration.ORIENTATION_LANDSCAPE -> keyboardHeightPercentLandscape
-                else -> keyboardHeightPercent
-            }.getValue()
+            val percent = activeKeyboardHeightPercentValue
             val baseHeight = (if (floatingKeyboardEnabled) {
                 height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
             } else {
@@ -300,10 +299,24 @@ class InputView(
             else -> floatingKeyboardWidthPercent
         }
 
-    private val activeKeyboardHeightPercent
+    private val activeDockedKeyboardHeightPercent
         get() = when (resources.configuration.orientation) {
             Configuration.ORIENTATION_LANDSCAPE -> keyboardHeightPercentLandscape
             else -> keyboardHeightPercent
+        }
+
+    private val activeFloatingKeyboardHeightPercent
+        get() = when (resources.configuration.orientation) {
+            Configuration.ORIENTATION_LANDSCAPE -> internalPrefs.floatingKeyboardHeightPercentLandscape
+            else -> internalPrefs.floatingKeyboardHeightPercent
+        }
+
+    private val activeKeyboardHeightPercentValue: Int
+        get() {
+            val dockedHeightPercent = activeDockedKeyboardHeightPercent.getValue()
+            if (!floatingKeyboardEnabled) return dockedHeightPercent
+            return activeFloatingKeyboardHeightPercent.getValue().takeIf { it > 0 }
+                ?: dockedHeightPercent
         }
 
     private val activeFloatingKeyboardXRatio
@@ -496,7 +509,7 @@ class InputView(
                     .roundToInt()
                     .coerceIn(MIN_KEYBOARD_HEIGHT_PERCENT, MAX_KEYBOARD_HEIGHT_PERCENT)
                 activeFloatingKeyboardWidthPercent.setValue(widthPercent)
-                activeKeyboardHeightPercent.setValue(heightPercent)
+                activeFloatingKeyboardHeightPercent.setValue(heightPercent)
                 updateKeyboardSize()
                 val newWidthPx = floatingKeyboardWidthPx
                 val newKeyboardHeight = floatingResizeStartKeyboardHeight +
@@ -664,7 +677,13 @@ class InputView(
             floatingMoveHandle.visibility = VISIBLE
             resizeHandle.visibility = GONE
             windowManager.view.translationY = 0f
-            windowManager.view.setPadding(sidePadding, 0, sidePadding, 0)
+            val floatingSidePadding = max(sidePadding, dp(FLOATING_KEYBOARD_SIDE_CONTENT_PADDING_DP))
+            windowManager.view.setPadding(
+                floatingSidePadding,
+                0,
+                floatingSidePadding,
+                dp(FLOATING_KEYBOARD_BOTTOM_CONTENT_PADDING_DP)
+            )
             windowManager.view.updateLayoutParams<LayoutParams> {
                 startToEnd = unset
                 endToStart = unset
@@ -916,6 +935,7 @@ class InputView(
 
     private fun resetFloatingKeyboardLayout() {
         activeFloatingKeyboardWidthPercent.setValue(DEFAULT_FLOATING_KEYBOARD_WIDTH_PERCENT)
+        activeFloatingKeyboardHeightPercent.setValue(0)
         activeFloatingKeyboardXRatio.setValue(DEFAULT_FLOATING_KEYBOARD_X_RATIO)
         activeFloatingKeyboardYRatio.setValue(
             when (resources.configuration.orientation) {

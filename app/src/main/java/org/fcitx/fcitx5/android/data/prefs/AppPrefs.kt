@@ -39,6 +39,8 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
         val floatingKeyboardYRatio = float("floating_keyboard_y_ratio", 0.48f)
         val floatingKeyboardXRatioLandscape = float("floating_keyboard_x_ratio_landscape", 0.5f)
         val floatingKeyboardYRatioLandscape = float("floating_keyboard_y_ratio_landscape", 0.55f)
+        val floatingKeyboardHeightPercent = int("floating_keyboard_height_percent", 0)
+        val floatingKeyboardHeightPercentLandscape = int("floating_keyboard_height_percent_landscape", 0)
     }
 
     inner class Advanced : ManagedPreferenceCategory(R.string.advanced, sharedPreferences) {
@@ -193,7 +195,7 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
                 R.string.keyboard_height,
                 R.string.portrait,
                 "keyboard_height_percent",
-                30,
+                24,
                 R.string.landscape,
                 "keyboard_height_percent_landscape",
                 49,
