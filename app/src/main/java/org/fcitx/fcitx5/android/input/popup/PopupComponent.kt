@@ -70,6 +70,8 @@ class PopupComponent :
             layoutDirection = View.LAYOUT_DIRECTION_LTR
             isClickable = false
             isFocusable = false
+            clipChildren = false
+            clipToPadding = false
 
             addOnLayoutChangeListener { v, left, top, right, bottom, _, _, _, _ ->
                 val (x, y) = rootLocation.also { v.getLocationInWindow(it) }

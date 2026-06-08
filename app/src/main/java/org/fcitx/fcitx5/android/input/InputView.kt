@@ -847,7 +847,20 @@ class InputView(
         }
         updateFloatingMoveHandlePosition()
         updateFloatingEditOverlayPosition()
+        updatePopupLayer()
         keyboardView.invalidateOutline()
+    }
+
+    private fun updatePopupLayer() {
+        popup.root.elevation = if (floatingKeyboardEnabled) {
+            keyboardView.elevation + 2f
+        } else {
+            0f
+        }
+        popup.root.bringToFront()
+        floatingMoveHandle.bringToFront()
+        resetFloatingKeyboardButton.bringToFront()
+        floatingEditOverlay.bringToFront()
     }
 
     private fun setupFloatingEditOverlay() {
@@ -963,6 +976,7 @@ class InputView(
         floatingKeyboardY = min(max(y, 0f), maxY)
         keyboardView.translationX = floatingKeyboardX
         keyboardView.translationY = floatingKeyboardY
+        updatePopupLayer()
         updateFloatingMoveHandlePosition()
         updateFloatingEditOverlaySize()
         updateFloatingEditOverlayPosition()
