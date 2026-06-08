@@ -643,8 +643,15 @@ class InputView(
     }
 
     private fun updateKeyboardSize() {
-        windowManager.view.updateLayoutParams {
+        windowManager.view.updateLayoutParams<LayoutParams> {
             height = keyboardHeightPx
+            if (floatingKeyboardEnabled) {
+                bottomToTop = unset
+                bottomOfParent()
+            } else {
+                bottomToBottom = unset
+                above(bottomPaddingSpace)
+            }
         }
         bottomPaddingSpace.updateLayoutParams<LayoutParams> {
             height = keyboardBottomPaddingPx
