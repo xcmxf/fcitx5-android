@@ -118,6 +118,10 @@ class InputView(
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
         private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
+        private const val FLOATING_DOCK_TARGET_HEIGHT_DP = 88
+        private const val FLOATING_DOCK_TARGET_HORIZONTAL_MARGIN_DP = 16
+        private const val FLOATING_DOCK_TARGET_BOTTOM_MARGIN_DP = 10
+        private const val FLOATING_DOCK_TARGET_CORNER_RADIUS_DP = 24
         private const val MIN_KEYBOARD_HEIGHT_PERCENT = 24
         private const val MAX_KEYBOARD_HEIGHT_PERCENT = 90
         private const val FLOATING_KEYBOARD_HEIGHT_SCALE = 0.70f
@@ -161,6 +165,17 @@ class InputView(
         clipChildren = false
         clipToPadding = false
         visibility = GONE
+    }
+    private val floatingDockTarget = view(::View) {
+        visibility = GONE
+        isClickable = false
+        isFocusable = false
+        background = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            cornerRadius = dp(FLOATING_DOCK_TARGET_CORNER_RADIUS_DP).toFloat()
+            setColor(theme.genericActiveBackgroundColor.alpha(0.34f))
+            setStroke(dp(1), theme.genericActiveBackgroundColor.alpha(0.70f))
+        }
     }
     private val resetFloatingKeyboardButton = textView {
         text = context.getString(R.string.reset)
@@ -342,6 +357,7 @@ class InputView(
     private var floatingResizeStartKeyboardHeight = 0
     private var floatingResizeStartWindowHeight = 0
     private var floatingDragMoved = false
+    private var floatingDockTargetVisible = false
     private var lastFloatingMoveHandleTapTime = 0L
     private var floatingEditControlsVisible = false
     private val floatingTouchSlop = ViewConfiguration.get(context).scaledTouchSlop
@@ -425,6 +441,7 @@ class InputView(
             MotionEvent.ACTION_DOWN -> {
                 removeCallbacks(hideFloatingEditControlsRunnable)
                 floatingDragMoved = false
+                setFloatingDockTargetVisible(false)
                 floatingDragStartRawX = event.rawX
                 floatingDragStartRawY = event.rawY
                 floatingDragStartKeyboardX = floatingKeyboardX
@@ -444,10 +461,12 @@ class InputView(
                     floatingDragStartKeyboardY + event.rawY - floatingDragStartRawY,
                     persist = true
                 )
+                updateFloatingDockTargetForPosition()
                 true
             }
 
             MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                setFloatingDockTargetVisible(false)
                 if (!dockFloatingKeyboardIfNearBottom()) {
                     val isMoveHandleTap = view === floatingMoveHandle &&
                         event.actionMasked == MotionEvent.ACTION_UP &&
@@ -619,6 +638,14 @@ class InputView(
             above(keyboardView)
             centerHorizontally()
         })
+        add(floatingDockTarget, lParams(0, dp(FLOATING_DOCK_TARGET_HEIGHT_DP)) {
+            startOfParent()
+            endOfParent()
+            bottomOfParent()
+            marginStart = dp(FLOATING_DOCK_TARGET_HORIZONTAL_MARGIN_DP)
+            marginEnd = dp(FLOATING_DOCK_TARGET_HORIZONTAL_MARGIN_DP)
+            bottomMargin = dp(FLOATING_DOCK_TARGET_BOTTOM_MARGIN_DP)
+        })
         if (floatingKeyboardEnabled) {
             add(keyboardView, lParams(floatingKeyboardWidthPx, wrapContent) {
                 startOfParent()
@@ -731,8 +758,8 @@ class InputView(
                 endToStartOf(rightPaddingSpace)
             }
         }
+        updatePreeditPosition()
         val inputSidePadding = if (floatingKeyboardEnabled) 0 else sidePadding
-        preedit.ui.root.setPadding(inputSidePadding, 0, inputSidePadding, 0)
         kawaiiBar.view.setPadding(inputSidePadding, 0, inputSidePadding, 0)
         if (floatingKeyboardEnabled) {
             if (keyboardView.parent != null) {
@@ -843,10 +870,12 @@ class InputView(
         }
         if (!floatingKeyboardEnabled) {
             floatingEditControlsVisible = false
+            setFloatingDockTargetVisible(false)
             removeCallbacks(hideFloatingEditControlsRunnable)
         }
         updateFloatingMoveHandlePosition()
         updateFloatingEditOverlayPosition()
+        updatePreeditPosition()
         updatePopupLayer()
         keyboardView.invalidateOutline()
     }
@@ -858,9 +887,70 @@ class InputView(
             0f
         }
         popup.root.bringToFront()
+        floatingDockTarget.bringToFront()
         floatingMoveHandle.bringToFront()
         resetFloatingKeyboardButton.bringToFront()
         floatingEditOverlay.bringToFront()
+    }
+
+    private fun updatePreeditPosition() {
+        val root = preedit.ui.root
+        val sidePadding = if (floatingKeyboardEnabled) 0 else keyboardSidePaddingPx
+        root.setPadding(sidePadding, 0, sidePadding, 0)
+        if (root.parent == null) return
+        root.updateLayoutParams<LayoutParams> {
+            if (floatingKeyboardEnabled) {
+                width = floatingKeyboardWidthPx
+                height = wrapContent
+                startToStart = PARENT_ID
+                topToTop = PARENT_ID
+                endToEnd = unset
+                bottomToTop = unset
+                bottomToBottom = unset
+            } else {
+                width = matchParent
+                height = wrapContent
+                startToStart = unset
+                topToTop = unset
+                endToEnd = unset
+                bottomToBottom = unset
+                above(keyboardView)
+                centerHorizontally()
+            }
+        }
+        if (floatingKeyboardEnabled) {
+            val preeditHeight = root.height.takeIf { it > 0 } ?: root.measuredHeight
+            root.translationX = floatingKeyboardX
+            root.translationY = max(0f, floatingKeyboardY - preeditHeight)
+            root.elevation = keyboardView.elevation + 1f
+        } else {
+            root.translationX = 0f
+            root.translationY = 0f
+            root.elevation = 0f
+        }
+    }
+
+    private fun setFloatingDockTargetVisible(visible: Boolean) {
+        floatingDockTargetVisible = visible && floatingKeyboardEnabled
+        floatingDockTarget.visibility = if (floatingDockTargetVisible) VISIBLE else GONE
+        if (floatingDockTargetVisible) {
+            floatingDockTarget.elevation = keyboardView.elevation + 0.5f
+            floatingDockTarget.bringToFront()
+            keyboardView.bringToFront()
+            popup.root.bringToFront()
+            floatingMoveHandle.bringToFront()
+            resetFloatingKeyboardButton.bringToFront()
+            floatingEditOverlay.bringToFront()
+        }
+    }
+
+    private fun updateFloatingDockTargetForPosition() {
+        if (!floatingKeyboardEnabled || height <= 0 || keyboardView.height <= 0) {
+            setFloatingDockTargetVisible(false)
+            return
+        }
+        val dockY = height - navBarBottomInset - keyboardView.height
+        setFloatingDockTargetVisible(dockY - floatingKeyboardY <= dp(FLOATING_DOCK_THRESHOLD_DP))
     }
 
     private fun setupFloatingEditOverlay() {
@@ -976,6 +1066,7 @@ class InputView(
         floatingKeyboardY = min(max(y, 0f), maxY)
         keyboardView.translationX = floatingKeyboardX
         keyboardView.translationY = floatingKeyboardY
+        updatePreeditPosition()
         updatePopupLayer()
         updateFloatingMoveHandlePosition()
         updateFloatingEditOverlaySize()
@@ -1072,6 +1163,8 @@ class InputView(
             is FcitxEvent.InputPanelEvent -> {
                 preeditEmptyState.updatePreeditEmptyState(preedit = it.data.preedit)
                 broadcaster.onInputPanelUpdate(it.data)
+                updatePreeditPosition()
+                preedit.ui.root.post { updatePreeditPosition() }
             }
             is FcitxEvent.IMChangeEvent -> {
                 broadcaster.onImeUpdate(it.data)
