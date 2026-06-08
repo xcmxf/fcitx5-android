@@ -95,7 +95,7 @@ class InputView(
 ) : BaseInputView(service, fcitx, theme), InputBroadcastReceiver {
 
     companion object {
-        private const val MIN_FLOATING_KEYBOARD_WIDTH_PERCENT = 78
+        private const val MIN_FLOATING_KEYBOARD_WIDTH_PERCENT = 35
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
         private const val MIN_FLOATING_KEYBOARD_WIDTH_DP = 320
         private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
@@ -106,10 +106,11 @@ class InputView(
         private const val FLOATING_MOVE_HANDLE_BAR_GAP_DP = 6
         private const val FLOATING_EXTERNAL_CONTROLS_GAP_DP = 6
         private const val FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP = 40
-        private const val FLOATING_DOCK_THRESHOLD_DP = 72
+        private const val FLOATING_DOCK_THRESHOLD_DP = 20
         private const val FLOATING_RESIZE_HANDLE_SIZE_DP = 40
         private const val FLOATING_KEYBOARD_CORNER_RADIUS_DP = 28
         private const val FLOATING_KEYBOARD_SIDE_CONTENT_PADDING_DP = 6
+        private const val FLOATING_KEYBOARD_BAR_PADDING_DP = 18
         private const val FLOATING_KEYBOARD_BOTTOM_CONTENT_PADDING_DP = 10
         private const val FLOATING_KEYBOARD_ELEVATION_DP = 12
         private const val FLOATING_EDIT_OVERLAY_OUTSET_DP = 10
@@ -118,9 +119,9 @@ class InputView(
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
         private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
-        private const val FLOATING_DOCK_TARGET_HEIGHT_DP = 88
-        private const val FLOATING_DOCK_TARGET_HORIZONTAL_MARGIN_DP = 16
-        private const val FLOATING_DOCK_TARGET_BOTTOM_MARGIN_DP = 10
+        private const val FLOATING_DOCK_TARGET_HEIGHT_DP = 48
+        private const val FLOATING_DOCK_TARGET_HORIZONTAL_MARGIN_DP = 40
+        private const val FLOATING_DOCK_TARGET_BOTTOM_MARGIN_DP = 4
         private const val FLOATING_DOCK_TARGET_CORNER_RADIUS_DP = 24
         private const val MIN_KEYBOARD_HEIGHT_PERCENT = 24
         private const val MAX_KEYBOARD_HEIGHT_PERCENT = 90
@@ -295,7 +296,9 @@ class InputView(
     private val floatingKeyboardWidthPx: Int
         get() {
             val availableWidth = floatingKeyboardAvailableWidthPx
-            val percentWidth = availableWidth * activeFloatingKeyboardWidthPercent.getValue() / 100
+            val widthPercent = activeFloatingKeyboardWidthPercent.getValue()
+                .coerceIn(MIN_FLOATING_KEYBOARD_WIDTH_PERCENT, MAX_FLOATING_KEYBOARD_WIDTH_PERCENT)
+            val percentWidth = availableWidth * widthPercent / 100
             return max(percentWidth, min(availableWidth, dp(MIN_FLOATING_KEYBOARD_WIDTH_DP)))
         }
 
@@ -510,14 +513,20 @@ class InputView(
             }
 
             MotionEvent.ACTION_MOVE -> {
-                val parentWidth = width.takeIf { it > 0 } ?: return@OnTouchListener true
+                val availableWidth = floatingKeyboardAvailableWidthPx.takeIf { it > 0 }
+                    ?: return@OnTouchListener true
                 val parentHeight = height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
                 val horizontalDelta = horizontalSign * (event.rawX - floatingDragStartRawX)
                 val verticalDelta = verticalSign * (event.rawY - floatingDragStartRawY)
                 val newWidth = (floatingResizeStartWidth + horizontalDelta).roundToInt()
-                val widthPercent = (newWidth * 100f / parentWidth)
+                val absoluteMinWidth = min(availableWidth, dp(MIN_FLOATING_KEYBOARD_WIDTH_DP))
+                val minWidthPercent = max(
+                    MIN_FLOATING_KEYBOARD_WIDTH_PERCENT,
+                    (absoluteMinWidth * 100f / availableWidth).roundToInt()
+                )
+                val widthPercent = (newWidth * 100f / availableWidth)
                     .roundToInt()
-                    .coerceIn(MIN_FLOATING_KEYBOARD_WIDTH_PERCENT, MAX_FLOATING_KEYBOARD_WIDTH_PERCENT)
+                    .coerceIn(minWidthPercent, MAX_FLOATING_KEYBOARD_WIDTH_PERCENT)
                 val newWindowHeight = (floatingResizeStartWindowHeight + verticalDelta).roundToInt()
                 val heightScale = if (windowManager.isAttached(KeyboardWindow)) {
                     FLOATING_KEYBOARD_HEIGHT_SCALE
@@ -759,7 +768,11 @@ class InputView(
             }
         }
         updatePreeditPosition()
-        val inputSidePadding = if (floatingKeyboardEnabled) 0 else sidePadding
+        val inputSidePadding = if (floatingKeyboardEnabled) {
+            dp(FLOATING_KEYBOARD_BAR_PADDING_DP)
+        } else {
+            sidePadding
+        }
         kawaiiBar.view.setPadding(inputSidePadding, 0, inputSidePadding, 0)
         if (floatingKeyboardEnabled) {
             if (keyboardView.parent != null) {
@@ -895,7 +908,11 @@ class InputView(
 
     private fun updatePreeditPosition() {
         val root = preedit.ui.root
-        val sidePadding = if (floatingKeyboardEnabled) 0 else keyboardSidePaddingPx
+        val sidePadding = if (floatingKeyboardEnabled) {
+            dp(FLOATING_KEYBOARD_BAR_PADDING_DP)
+        } else {
+            keyboardSidePaddingPx
+        }
         root.setPadding(sidePadding, 0, sidePadding, 0)
         if (root.parent == null) return
         root.updateLayoutParams<LayoutParams> {
@@ -1096,11 +1113,11 @@ class InputView(
         }
         keyboardView.getLocationInWindow(inputViewLocation)
         val outset = dp(FLOATING_EDIT_OVERLAY_OUTSET_DP)
-        val bottomOutset = dp(
-            FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP +
-                FLOATING_EDIT_OVERLAY_OUTSET_DP +
-                FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP
-        )
+        val bottomOutset = if (floatingEditControlsVisible) {
+            dp(FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP + FLOATING_EDIT_OVERLAY_OUTSET_DP)
+        } else {
+            dp(FLOATING_MOVE_HANDLE_BAR_GAP_DP + FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP)
+        }
         outRect.set(
             inputViewLocation[0] - outset,
             inputViewLocation[1] - outset,
