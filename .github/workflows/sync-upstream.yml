@@ -1,35 +1,41 @@
-name: Nightly Release
+name: Sync Upstream
 
 on:
   schedule:
-    - cron: "0 18 * * *"
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       target_branch:
-        description: "Fork branch to sync and release"
+        description: "Fork branch to sync"
         required: true
         default: "test-floating-keyboard-20260604-225446"
       upstream_branch:
         description: "Upstream branch to merge"
         required: true
         default: "master"
+      trigger_nightly:
+        description: "Trigger nightly release after a successful sync"
+        required: true
+        default: "true"
 
 permissions:
+  actions: write
   contents: write
   pull-requests: write
 
 concurrency:
-  group: nightly-release
-  cancel-in-progress: true
+  group: sync-upstream-${{ github.event.inputs.target_branch || 'test-floating-keyboard-20260604-225446' }}
+  cancel-in-progress: false
 
 env:
   TARGET_BRANCH: ${{ github.event.inputs.target_branch || 'test-floating-keyboard-20260604-225446' }}
   UPSTREAM_BRANCH: ${{ github.event.inputs.upstream_branch || 'master' }}
   UPSTREAM_REPO: fcitx5-android/fcitx5-android
+  TRIGGER_NIGHTLY: ${{ github.event.inputs.trigger_nightly || 'true' }}
   NOTIFY_USER: ${{ github.repository_owner }}
 
 jobs:
-  nightly:
+  sync:
     runs-on: ubuntu-24.04
     steps:
       - name: Fetch source code
@@ -102,84 +108,13 @@ jobs:
         if: steps.sync.outputs.conflict == 'true'
         run: exit 1
 
-      - name: Setup Java
-        uses: actions/setup-java@v5
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Setup Android environment
-        uses: android-actions/setup-android@v3
-
-      - name: Install build dependencies
-        run: |
-          sdkmanager --install "cmake;3.31.6"
-          sudo apt update
-          sudo apt install -y extra-cmake-modules gettext
-
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v5
-
-      - name: Build nightly APKs
-        run: |
-          mkdir -p unsigned-assets
-          for abi in arm64-v8a x86_64
-          do
-            rm -rf app/build/outputs/apk/release
-            ./gradlew :app:assembleRelease -PbuildABI="${abi}"
-            cp app/build/outputs/apk/release/*-unsigned.apk unsigned-assets/
-          done
-
-      - name: Sign nightly APKs
-        run: |
-          base64 -d .github/nightly-debug.keystore.b64 > nightly-debug.keystore
-
-          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
-          if [ -z "${APKSIGNER}" ]; then
-            sdkmanager --install "build-tools;36.0.0"
-            APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
-          fi
-
-          mkdir -p release-assets
-          for apk in unsigned-assets/*-unsigned.apk
-          do
-            base="$(basename "${apk}")"
-            signed="release-assets/${base/-unsigned.apk/-debugsigned.apk}"
-            "${APKSIGNER}" sign \
-              --v4-signing-enabled false \
-              --ks nightly-debug.keystore \
-              --ks-pass pass:android \
-              --key-pass pass:android \
-              --out "${signed}" \
-              "${apk}"
-            "${APKSIGNER}" verify --verbose "${signed}"
-          done
-
-      - name: Prepare release notes
-        run: |
-          {
-            echo "Nightly build from ${GITHUB_REPOSITORY}@$(git rev-parse --short HEAD)"
-            echo
-            echo "- Synced upstream: ${UPSTREAM_REPO}@${UPSTREAM_BRANCH}"
-            echo "- Target branch: ${TARGET_BRANCH}"
-            echo "- Built ABIs: arm64-v8a, x86_64"
-            echo "- Signing: fixed nightly debug key"
-            echo
-            echo "Commit:"
-            git log -1 --oneline
-          } > release-notes.md
-
-      - name: Publish nightly release
+      - name: Trigger nightly release
+        if: steps.sync.outputs.changed == 'true' && env.TRIGGER_NIGHTLY == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete nightly --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag || true
-          git push origin :refs/tags/nightly || true
-          git tag -f nightly
-          git push origin refs/tags/nightly --force
-          gh release create nightly release-assets/* \
+          gh workflow run nightly-release.yml \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "Nightly $(date -u +%Y-%m-%d)" \
-            --notes-file release-notes.md \
-            --prerelease \
-            --latest=false
+            --ref "${TARGET_BRANCH}" \
+            -f target_branch="${TARGET_BRANCH}" \
+            -f upstream_branch="${UPSTREAM_BRANCH}"
