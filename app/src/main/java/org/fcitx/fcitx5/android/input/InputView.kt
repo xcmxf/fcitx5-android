@@ -116,6 +116,7 @@ class InputView(
         private const val FLOATING_CORNER_HANDLE_SIZE_DP = 64
         private const val FLOATING_CORNER_HANDLE_TOUCH_BAND_DP = 18
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
+        private const val FLOATING_CORNER_HANDLE_SWEEP_DEGREES = 64f
         private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
         private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
         private const val FLOATING_DOCK_TARGET_HEIGHT_DP = FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP
@@ -384,13 +385,19 @@ class InputView(
             super.onDraw(canvas)
             val inset = paint.strokeWidth / 2f
             val arc = RectF(inset, inset, width - inset, height - inset)
-            val startAngle = when {
-                horizontalSign < 0 && verticalSign < 0 -> 180f
-                horizontalSign > 0 && verticalSign < 0 -> 270f
-                horizontalSign > 0 && verticalSign > 0 -> 0f
-                else -> 90f
+            val centerAngle = when {
+                horizontalSign < 0 && verticalSign < 0 -> 225f
+                horizontalSign > 0 && verticalSign < 0 -> 315f
+                horizontalSign > 0 && verticalSign > 0 -> 45f
+                else -> 135f
             }
-            canvas.drawArc(arc, startAngle, 90f, false, paint)
+            canvas.drawArc(
+                arc,
+                centerAngle - FLOATING_CORNER_HANDLE_SWEEP_DEGREES / 2f,
+                FLOATING_CORNER_HANDLE_SWEEP_DEGREES,
+                false,
+                paint
+            )
         }
 
         fun isResizeTouchActive(event: MotionEvent): Boolean {
