@@ -28,6 +28,7 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.annotation.Keep
 import androidx.annotation.RequiresApi
+import androidx.core.view.children
 import androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
 import androidx.core.view.updateLayoutParams
 import org.fcitx.fcitx5.android.R
@@ -371,8 +372,8 @@ class InputView(
 
     private inner class FloatingCornerHandleView(
         context: android.content.Context,
-        private val horizontalSign: Int,
-        private val verticalSign: Int
+        val horizontalSign: Int,
+        val verticalSign: Int
     ) : View(context) {
         private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = theme.genericActiveBackgroundColor
@@ -1019,6 +1020,20 @@ class InputView(
                 0
             }
         }
+        val bottomHandleTopMargin = max(0, keyboardView.height + outset * 2 - dp(FLOATING_CORNER_HANDLE_SIZE_DP))
+        floatingEditOverlay.children
+            .filterIsInstance<FloatingCornerHandleView>()
+            .filter { it.verticalSign > 0 }
+            .forEach { handle ->
+                handle.updateLayoutParams<FrameLayout.LayoutParams> {
+                    gravity = if (handle.horizontalSign < 0) {
+                        Gravity.START or Gravity.TOP
+                    } else {
+                        Gravity.END or Gravity.TOP
+                    }
+                    topMargin = bottomHandleTopMargin
+                }
+            }
     }
 
     private fun updateFloatingEditOverlayPosition() {
