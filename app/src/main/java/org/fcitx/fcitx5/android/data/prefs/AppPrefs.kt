@@ -149,6 +149,12 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             "keep_keyboard_letters_uppercase",
             false
         )
+        val swipeTyping = switch(
+            R.string.swipe_typing,
+            "swipe_typing",
+            false,
+            R.string.swipe_typing_summary
+        )
 
         val showVoiceInputButton =
             switch(R.string.show_voice_input_button, "show_voice_input_button", false)
@@ -162,7 +168,22 @@ class AppPrefs(private val sharedPreferences: SharedPreferences) {
             R.string.swipe_symbol_behavior,
             "swipe_symbol_behavior",
             SwipeSymbolDirection.Down
-        )
+        ) { !swipeTyping.getValue() }
+
+        @Keep
+        private val disableSymbolSwipeOnSwipeTyping =
+            ManagedPreference.OnChangeListener<Boolean> { _, enabled ->
+                if (enabled && swipeSymbolDirection.getValue() != SwipeSymbolDirection.Disabled) {
+                    swipeSymbolDirection.setValue(SwipeSymbolDirection.Disabled)
+                }
+            }
+
+        init {
+            swipeTyping.registerOnChangeListener(disableSymbolSwipeOnSwipeTyping)
+            if (swipeTyping.getValue() && swipeSymbolDirection.getValue() != SwipeSymbolDirection.Disabled) {
+                swipeSymbolDirection.setValue(SwipeSymbolDirection.Disabled)
+            }
+        }
         val longPressDelay = int(
             R.string.keyboard_long_press_delay,
             "keyboard_long_press_delay",

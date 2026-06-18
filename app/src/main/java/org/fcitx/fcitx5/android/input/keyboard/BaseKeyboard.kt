@@ -25,6 +25,12 @@ import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView.GestureType
 import org.fcitx.fcitx5.android.input.keyboard.CustomGestureView.OnGestureListener
 import org.fcitx.fcitx5.android.input.popup.PopupAction
 import org.fcitx.fcitx5.android.input.popup.PopupActionListener
+import org.fcitx.fcitx5.android.input.swipe.SwipeKey
+import org.fcitx.fcitx5.android.input.swipe.SwipeLayout
+import org.fcitx.fcitx5.android.input.swipe.SwipePoint
+import org.fcitx.fcitx5.android.input.swipe.SwipeRecognitionRequest
+import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoder
+import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoders
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.above
 import splitties.views.dsl.constraintlayout.below
@@ -41,6 +47,7 @@ import splitties.views.dsl.constraintlayout.topOfParent
 import splitties.views.dsl.core.add
 import timber.log.Timber
 import kotlin.math.absoluteValue
+import kotlin.math.max
 import kotlin.math.roundToInt
 
 abstract class BaseKeyboard(
@@ -56,6 +63,7 @@ abstract class BaseKeyboard(
     private val popupOnKeyPress by prefs.keyboard.popupOnKeyPress
     private val expandKeypressArea by prefs.keyboard.expandKeypressArea
     private val swipeSymbolDirection by prefs.keyboard.swipeSymbolDirection
+    private val swipeTyping by prefs.keyboard.swipeTyping
 
     private val spaceSwipeMoveCursor = prefs.keyboard.spaceSwipeMoveCursor
     private val spaceKeys = mutableListOf<KeyView>()
@@ -79,6 +87,17 @@ abstract class BaseKeyboard(
 
     private val bounds = Rect()
     private val keyRows: List<ConstraintLayout>
+    private val swipeKeyLabels = hashMapOf<View, String>()
+    private var swipeDecoder: SwipeTypingDecoder? = null
+    private var currentInputMethod: InputMethodEntry? = null
+    private var swipePointerId = MotionEvent.INVALID_POINTER_ID
+    private var swipeStartX = 0f
+    private var swipeStartY = 0f
+    private var swipeStartTime = 0L
+    private var swipeTracking = false
+    private var swipeIntercepted = false
+    private val swipePoints = mutableListOf<SwipePoint>()
+    private val swipeTrace = StringBuilder()
 
     /**
      * HashMap of [PointerId (Int)][MotionEvent.getPointerId] to [KeyView]
@@ -151,6 +170,9 @@ abstract class BaseKeyboard(
             is KeyDef.Appearance.Text -> TextKeyView(context, theme, def.appearance)
             is KeyDef.Appearance.Image -> ImageKeyView(context, theme, def.appearance)
         }.apply {
+            if (def is AlphabetKey) {
+                swipeKeyLabels[this] = def.character.lowercase()
+            }
             soundEffect = when (def) {
                 is SpaceKey -> InputFeedbacks.SoundEffect.SpaceBar
                 is MiniSpaceKey -> InputFeedbacks.SoundEffect.SpaceBar
@@ -233,7 +255,10 @@ abstract class BaseKeyboard(
                         onGestureListener = OnGestureListener { view, event ->
                             when (event.type) {
                                 GestureType.Up -> {
-                                    if (!event.consumed && swipeSymbolDirection.checkY(event.totalY)) {
+                                    if (!swipeTyping &&
+                                        !event.consumed &&
+                                        swipeSymbolDirection.checkY(event.totalY)
+                                    ) {
                                         onAction(it.action)
                                         true
                                     } else {
@@ -309,7 +334,8 @@ abstract class BaseKeyboard(
                                         PopupAction.PreviewAction(view.id, it.content, view.bounds)
                                     )
                                     GestureType.Move -> {
-                                        val triggered = swipeSymbolDirection.checkY(event.totalY)
+                                        val triggered =
+                                            !swipeTyping && swipeSymbolDirection.checkY(event.totalY)
                                         val text = if (triggered) it.alternative else it.content
                                         onPopupAction(
                                             PopupAction.PreviewUpdateAction(view.id, text)
@@ -354,6 +380,7 @@ abstract class BaseKeyboard(
     }
 
     private fun findTargetChild(x: Float, y: Float): View? {
+        if (bounds.height() <= 0 || keyRows.isEmpty()) return null
         val y0 = y.roundToInt()
         // assume all rows have equal height
         val row = keyRows.getOrNull(y0 * keyRows.size / bounds.height()) ?: return null
@@ -385,12 +412,14 @@ abstract class BaseKeyboard(
     }
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (handleSwipeIntercept(ev)) return true
         // intercept ACTION_DOWN and all following events will go to parent's onTouchEvent
         return if (vivoKeypressWorkaround && ev.actionMasked == MotionEvent.ACTION_DOWN) true
         else super.onInterceptTouchEvent(ev)
     }
 
     override fun onTouchEvent(event: MotionEvent): Boolean {
+        if (handleSwipeTouchEvent(event)) return true
         if (vivoKeypressWorkaround) {
             when (event.actionMasked) {
                 MotionEvent.ACTION_DOWN -> {
@@ -454,6 +483,160 @@ abstract class BaseKeyboard(
         return super.onTouchEvent(event)
     }
 
+    private fun handleSwipeIntercept(event: MotionEvent): Boolean {
+        if (!swipeTyping) {
+            resetSwipeTracking()
+            return false
+        }
+        when (event.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                val target = findTargetChild(event.x, event.y) ?: run {
+                    resetSwipeTracking()
+                    return false
+                }
+                val label = swipeKeyLabels[target] ?: run {
+                    resetSwipeTracking()
+                    return false
+                }
+                swipePointerId = event.getPointerId(0)
+                swipeStartX = event.x
+                swipeStartY = event.y
+                swipeStartTime = event.eventTime
+                swipeTracking = true
+                swipeIntercepted = false
+                swipePoints.clear()
+                swipeTrace.clear()
+                appendSwipePoint(event, 0)
+                appendSwipeLetter(label)
+            }
+            MotionEvent.ACTION_POINTER_DOWN -> resetSwipeTracking()
+            MotionEvent.ACTION_MOVE -> {
+                if (!swipeTracking || swipeIntercepted) return false
+                val index = event.findPointerIndex(swipePointerId)
+                if (index < 0 || event.pointerCount != 1) {
+                    resetSwipeTracking()
+                    return false
+                }
+                appendSwipePoint(event, index)
+                findTargetChild(event.getX(index), event.getY(index))?.let { target ->
+                    swipeKeyLabels[target]?.let(::appendSwipeLetter)
+                }
+                if (shouldInterceptSwipe(event.getX(index), event.getY(index))) {
+                    swipeIntercepted = true
+                    parent?.requestDisallowInterceptTouchEvent(true)
+                    return true
+                }
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> resetSwipeTracking()
+        }
+        return false
+    }
+
+    private fun handleSwipeTouchEvent(event: MotionEvent): Boolean {
+        if (!swipeIntercepted) return false
+        when (event.actionMasked) {
+            MotionEvent.ACTION_MOVE -> {
+                val index = event.findPointerIndex(swipePointerId)
+                if (index >= 0) {
+                    appendSwipePoint(event, index)
+                    findTargetChild(event.getX(index), event.getY(index))?.let { target ->
+                        swipeKeyLabels[target]?.let(::appendSwipeLetter)
+                    }
+                }
+                return true
+            }
+            MotionEvent.ACTION_UP -> {
+                val index = event.findPointerIndex(swipePointerId)
+                if (index >= 0) {
+                    appendSwipePoint(event, index)
+                    findTargetChild(event.getX(index), event.getY(index))?.let { target ->
+                        swipeKeyLabels[target]?.let(::appendSwipeLetter)
+                    }
+                }
+                finishSwipe()
+                resetSwipeTracking()
+                return true
+            }
+            MotionEvent.ACTION_CANCEL -> {
+                resetSwipeTracking()
+                return true
+            }
+        }
+        return true
+    }
+
+    private fun shouldInterceptSwipe(x: Float, y: Float): Boolean {
+        if (swipeTrace.toString().toSet().size < 2) return false
+        val dx = x - swipeStartX
+        val dy = y - swipeStartY
+        return dx * dx + dy * dy >= inputSwipeThreshold * inputSwipeThreshold
+    }
+
+    private fun appendSwipePoint(event: MotionEvent, pointerIndex: Int) {
+        val keyboardWidth = max(1, width)
+        val keyboardHeight = max(1, height)
+        val x = (event.getX(pointerIndex) / keyboardWidth).coerceIn(0f, 1f)
+        val y = (event.getY(pointerIndex) / keyboardHeight).coerceIn(0f, 1f)
+        val t = (event.eventTime - swipeStartTime).coerceAtLeast(0L).toFloat()
+        swipePoints.add(SwipePoint(x, y, t))
+    }
+
+    private fun appendSwipeLetter(label: String) {
+        if (label.length != 1 || !label[0].isLetter()) return
+        val normalized = label.lowercase()
+        if (swipeTrace.isEmpty() || swipeTrace.last().toString() != normalized) {
+            swipeTrace.append(normalized)
+        }
+    }
+
+    private fun finishSwipe() {
+        val layout = buildSwipeLayout() ?: return
+        val request = SwipeRecognitionRequest(
+            points = swipePoints.toList(),
+            layout = layout,
+            tracedLetters = swipeTrace.toString()
+        )
+        val candidate = runCatching {
+            val decoder = swipeDecoder ?: SwipeTypingDecoders.create(context).also {
+                swipeDecoder = it
+            }
+            decoder.recognize(request).firstOrNull()
+        }.onFailure {
+            Timber.w(it, "Swipe typing failed")
+        }.getOrNull() ?: return
+        val word = candidate.word
+        if (word.isBlank()) return
+        val ime = currentInputMethod
+        val bridgeToFcitx = ime?.languageCode?.startsWith("zh") == true ||
+                ime?.uniqueName?.contains("pinyin", ignoreCase = true) == true
+        onAction(
+            if (bridgeToFcitx) KeyAction.FcitxKeySequenceAction(word)
+            else KeyAction.CommitAction(word.lowercase())
+        )
+    }
+
+    private fun buildSwipeLayout(): SwipeLayout? {
+        if (bounds.width() <= 0 || bounds.height() <= 0) return null
+        val keys = swipeKeyLabels.mapNotNull { (view, label) ->
+            val keyView = view as? KeyView ?: return@mapNotNull null
+            val keyBounds = keyView.bounds
+            SwipeKey(
+                label,
+                (keyBounds.centerX() - bounds.left).toFloat() / bounds.width(),
+                (keyBounds.centerY() - bounds.top).toFloat() / bounds.height()
+            )
+        }
+        return keys.takeIf { it.isNotEmpty() }?.let(::SwipeLayout)
+    }
+
+    private fun resetSwipeTracking() {
+        swipePointerId = MotionEvent.INVALID_POINTER_ID
+        swipeTracking = false
+        swipeIntercepted = false
+        swipePoints.clear()
+        swipeTrace.clear()
+    }
+
     @CallSuper
     protected open fun onAction(
         action: KeyAction,
@@ -496,11 +679,12 @@ abstract class BaseKeyboard(
     }
 
     open fun onInputMethodUpdate(ime: InputMethodEntry) {
-        // do nothing by default
+        currentInputMethod = ime
     }
 
     open fun onDetach() {
-        // do nothing by default
+        swipeDecoder?.close()
+        swipeDecoder = null
     }
 
 }
