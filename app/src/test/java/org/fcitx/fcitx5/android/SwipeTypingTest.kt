@@ -34,7 +34,7 @@ class SwipeTypingTest {
 
     @Test
     fun traceShapeDecoderRecognizesEnglishSmokeWord() {
-        val results = TraceShapeSwipeDecoder.recognize(requestFor("hello"), topK = 4)
+        val results = TraceShapeSwipeDecoder().recognize(requestFor("hello"), topK = 4)
 
         assertTrue(results.isNotEmpty())
         assertEquals("hello", results.first().word)
@@ -42,10 +42,19 @@ class SwipeTypingTest {
 
     @Test
     fun traceShapeDecoderRecognizesPinyinBridgeSmokeWord() {
-        val results = TraceShapeSwipeDecoder.recognize(requestFor("nihao"), topK = 4)
+        val results = TraceShapeSwipeDecoder().recognize(requestFor("nihao"), topK = 4)
 
         assertTrue(results.isNotEmpty())
         assertEquals("nihao", results.first().word)
+    }
+
+    @Test
+    fun traceShapeDecoderUsesExternalDictionaryWords() {
+        val results = TraceShapeSwipeDecoder(listOf("woaini", "zaijian", "ceshi"))
+            .recognize(requestFor("ceshi"), topK = 4)
+
+        assertTrue(results.isNotEmpty())
+        assertEquals("ceshi", results.first().word)
     }
 
     private fun requestFor(word: String): SwipeRecognitionRequest {

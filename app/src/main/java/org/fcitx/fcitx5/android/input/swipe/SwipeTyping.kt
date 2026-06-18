@@ -68,38 +68,15 @@ interface SwipeTypingDecoder : AutoCloseable {
     }
 }
 
-object TraceShapeSwipeDecoder : SwipeTypingDecoder {
-    private val dictionary = listOf(
-        "hello",
-        "test",
-        "keyboard",
-        "swipe",
-        "typing",
-        "android",
-        "fcitx",
-        "input",
-        "word",
-        "text",
-        "language",
-        "space",
-        "delete",
-        "candidate",
-        "pinyin",
-        "nihao",
-        "zhongguo",
-        "zhongwen",
-        "woaini",
-        "xiexie",
-        "zaijian",
-        "shijie",
-        "women",
-        "nimen",
-        "tamen",
-        "meiyou",
-        "keyi",
-        "buneng",
-        "shurufa"
-    )
+class TraceShapeSwipeDecoder(
+    dictionary: Collection<String> = defaultDictionary
+) : SwipeTypingDecoder {
+    private val dictionary = dictionary
+        .asSequence()
+        .map { it.trim().lowercase() }
+        .filter { word -> word.length >= 2 && word.all { it in 'a'..'z' } }
+        .distinct()
+        .toList()
 
     override fun recognize(request: SwipeRecognitionRequest, topK: Int): List<SwipeCandidate> {
         if (request.points.size < 3) return emptyList()
@@ -190,5 +167,39 @@ object TraceShapeSwipeDecoder : SwipeTypingDecoder {
                 }
             }
         }
+    }
+
+    companion object {
+        val defaultDictionary = listOf(
+            "hello",
+            "test",
+            "keyboard",
+            "swipe",
+            "typing",
+            "android",
+            "fcitx",
+            "input",
+            "word",
+            "text",
+            "language",
+            "space",
+            "delete",
+            "candidate",
+            "pinyin",
+            "nihao",
+            "zhongguo",
+            "zhongwen",
+            "woaini",
+            "xiexie",
+            "zaijian",
+            "shijie",
+            "women",
+            "nimen",
+            "tamen",
+            "meiyou",
+            "keyi",
+            "buneng",
+            "shurufa"
+        )
     }
 }

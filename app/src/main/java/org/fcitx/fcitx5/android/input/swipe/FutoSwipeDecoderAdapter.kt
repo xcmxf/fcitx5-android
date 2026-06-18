@@ -66,8 +66,7 @@ class FutoSwipeDecoderAdapter private constructor(
     companion object {
         private const val CLASS_NAME = "org.futo.ml.inference.SwipeDecoder"
 
-        fun create(context: Context): FutoSwipeDecoderAdapter? {
-            val root = findModelRoot(context) ?: return null
+        fun create(root: File): FutoSwipeDecoderAdapter? {
             val encoder = findFirstExisting(
                 root.resolve("encoder/model_fp32.pte"),
                 root.resolve("model_fp32.pte")
@@ -135,19 +134,16 @@ class FutoSwipeDecoderAdapter private constructor(
             }.getOrNull()
         }
 
-        private fun findModelRoot(context: Context): File? {
-            return listOf(
-                context.filesDir.resolve("swipe"),
-                context.noBackupFilesDir.resolve("swipe")
-            ).firstOrNull { it.isDirectory }
-        }
-
         private fun findFirstExisting(vararg files: File): File? =
             files.firstOrNull { it.isFile }
     }
 }
 
 object SwipeTypingDecoders {
-    fun create(context: Context): SwipeTypingDecoder =
-        FutoSwipeDecoderAdapter.create(context) ?: TraceShapeSwipeDecoder
+    fun create(context: Context): SwipeTypingDecoder {
+        val root = SwipeAssets.prepare(context)
+        return FutoSwipeDecoderAdapter.create(root) ?: TraceShapeSwipeDecoder(
+            SwipeAssets.readDictionary(root)
+        )
+    }
 }
