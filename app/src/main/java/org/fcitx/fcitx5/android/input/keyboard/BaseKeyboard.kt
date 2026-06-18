@@ -34,6 +34,7 @@ import org.fcitx.fcitx5.android.input.swipe.SwipePoint
 import org.fcitx.fcitx5.android.input.swipe.SwipeRecognitionRequest
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoder
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoders
+import org.fcitx.fcitx5.android.input.swipe.SwipeTypingMode
 import org.fcitx.fcitx5.android.utils.alpha
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.above
@@ -93,6 +94,7 @@ abstract class BaseKeyboard(
     private val keyRows: List<ConstraintLayout>
     private val swipeKeyLabels = hashMapOf<View, String>()
     private var swipeDecoder: SwipeTypingDecoder? = null
+    private var swipeDecoderPinyinMode: Boolean? = null
     private var currentInputMethod: InputMethodEntry? = null
     private var swipePointerId = MotionEvent.INVALID_POINTER_ID
     private var swipeStartX = 0f
@@ -636,12 +638,14 @@ abstract class BaseKeyboard(
             layout = layout,
             tracedLetters = swipeTrace.toString()
         )
-        val ime = currentInputMethod
-        val bridgeToFcitx = ime?.languageCode?.startsWith("zh") == true ||
-                ime?.uniqueName?.contains("pinyin", ignoreCase = true) == true
+        val bridgeToFcitx = SwipeTypingMode.usePinyinBridge(currentInputMethod)
         val candidate = runCatching {
-            val decoder = swipeDecoder ?: SwipeTypingDecoders.create(context, bridgeToFcitx).also {
+            val decoder = swipeDecoder.takeIf {
+                swipeDecoderPinyinMode == bridgeToFcitx
+            } ?: SwipeTypingDecoders.create(context, bridgeToFcitx).also {
+                swipeDecoder?.close()
                 swipeDecoder = it
+                swipeDecoderPinyinMode = bridgeToFcitx
             }
             decoder.recognize(request).firstOrNull()
         }.onFailure {
@@ -724,11 +728,13 @@ abstract class BaseKeyboard(
         currentInputMethod = ime
         swipeDecoder?.close()
         swipeDecoder = null
+        swipeDecoderPinyinMode = null
     }
 
     open fun onDetach() {
         swipeDecoder?.close()
         swipeDecoder = null
+        swipeDecoderPinyinMode = null
     }
 
 }

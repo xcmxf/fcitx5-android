@@ -4,6 +4,8 @@
  */
 package org.fcitx.fcitx5.android.input.swipe
 
+import org.fcitx.fcitx5.android.core.InputMethodEntry
+import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.min
 import kotlin.math.sqrt
@@ -65,6 +67,20 @@ interface SwipeTypingDecoder : AutoCloseable {
 
     override fun close() {
         // do nothing by default
+    }
+}
+
+object SwipeTypingMode {
+    fun usePinyinBridge(ime: InputMethodEntry?): Boolean {
+        if (ime == null) return true
+
+        val uniqueName = ime.uniqueName.lowercase(Locale.ROOT)
+        val languageCode = ime.languageCode.lowercase(Locale.ROOT)
+        val addon = ime.addon.lowercase(Locale.ROOT)
+
+        return uniqueName != "keyboard-us" &&
+                addon != "androidkeyboard" &&
+                !(languageCode == "en" && uniqueName.startsWith("keyboard-"))
     }
 }
 
@@ -189,9 +205,13 @@ class TraceShapeSwipeDecoder(
         )
 
         val pinyinDictionary = listOf(
+            "ni",
+            "hao",
             "nihao",
             "zhongguo",
             "zhongwen",
+            "wo",
+            "ai",
             "woaini",
             "xiexie",
             "zaijian",
@@ -202,7 +222,41 @@ class TraceShapeSwipeDecoder(
             "meiyou",
             "keyi",
             "buneng",
-            "shurufa"
+            "shurufa",
+            "jintian",
+            "mingtian",
+            "zuotian",
+            "xianzai",
+            "dengyi",
+            "qingwen",
+            "bukeqi",
+            "duibuqi",
+            "meiguanxi",
+            "zaoshang",
+            "wanshang",
+            "xiawu",
+            "gongzuo",
+            "xuexi",
+            "diannao",
+            "shouji",
+            "dianhua",
+            "pengyou",
+            "jiaren",
+            "laoshi",
+            "xuesheng",
+            "chengshi",
+            "beijing",
+            "shanghai",
+            "guangzhou",
+            "shenzhen",
+            "taiwan",
+            "xianggang",
+            "meiguo",
+            "riben",
+            "hanguo",
+            "yingguo",
+            "faguo",
+            "deguo"
         )
     }
 }

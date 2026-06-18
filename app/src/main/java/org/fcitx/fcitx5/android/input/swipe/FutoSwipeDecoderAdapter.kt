@@ -142,8 +142,11 @@ class FutoSwipeDecoderAdapter private constructor(
 object SwipeTypingDecoders {
     fun create(context: Context, pinyinMode: Boolean): SwipeTypingDecoder {
         val root = SwipeAssets.prepare(context)
-        return FutoSwipeDecoderAdapter.create(root) ?: TraceShapeSwipeDecoder(
-            SwipeAssets.readDictionary(root, pinyinMode)
-        )
+        val dictionary = SwipeAssets.readDictionary(root, pinyinMode)
+        return if (pinyinMode) {
+            TraceShapeSwipeDecoder(dictionary)
+        } else {
+            FutoSwipeDecoderAdapter.create(root) ?: TraceShapeSwipeDecoder(dictionary)
+        }
     }
 }
