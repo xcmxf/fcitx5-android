@@ -11,8 +11,10 @@ import java.lang.reflect.Method
 
 class FutoSwipeDecoderAdapter private constructor(
     private val decoder: AutoCloseable,
+    private val trieHandle: Long,
     private val recognizeMethod: Method,
     private val setModeMethod: Method,
+    private val destroyTrieMethod: Method,
     private val resultWordMethod: Method,
     private val resultScoreMethod: Method
 ) : SwipeTypingDecoder {
@@ -38,6 +40,11 @@ class FutoSwipeDecoderAdapter private constructor(
     }
 
     override fun close() {
+        runCatching {
+            destroyTrieMethod.invoke(null, trieHandle)
+        }.onFailure {
+            Timber.w(it, "FUTO swipe trie cleanup failed")
+        }
         decoder.close()
     }
 
@@ -50,7 +57,7 @@ class FutoSwipeDecoderAdapter private constructor(
                 layout.letters,
                 layout.centerX,
                 layout.centerY,
-                null,
+                longArrayOf(trieHandle),
                 null,
                 null,
                 null
@@ -66,17 +73,25 @@ class FutoSwipeDecoderAdapter private constructor(
     companion object {
         private const val CLASS_NAME = "org.futo.ml.inference.SwipeDecoder"
 
-        fun create(root: File): FutoSwipeDecoderAdapter? {
+        fun create(root: File, pinyinMode: Boolean): FutoSwipeDecoderAdapter? {
             val encoder = findFirstExisting(
                 root.resolve("encoder/model_fp32.pte"),
+                root.resolve("honorable_sturgeon/model_fp32.pte"),
                 root.resolve("model_fp32.pte")
             ) ?: return null
+            val dictionary = findDictionary(root, pinyinMode) ?: return null
             val decoderModel = findFirstExisting(
                 root.resolve("decoder/model_fp32.pte"),
                 root.resolve("magic_macaw/model_fp32.pte")
             )
-            val lmModel = findFirstExisting(root.resolve("context_lm/model_fp32.pte"))
-            val lmVocab = findFirstExisting(root.resolve("context_lm/vocab.txt"))
+            val lmModel = findFirstExisting(
+                root.resolve("context_lm/model_fp32.pte"),
+                root.resolve("hungry_jellyfish/context_lm.pte")
+            )
+            val lmVocab = findFirstExisting(
+                root.resolve("context_lm/vocab.txt"),
+                root.resolve("hungry_jellyfish/vocab.txt")
+            )
 
             return runCatching {
                 val clazz = Class.forName(CLASS_NAME)
@@ -121,11 +136,18 @@ class FutoSwipeDecoderAdapter private constructor(
                     String::class.java,
                     String::class.java
                 )
+                val loadTrie = clazz.getMethod("loadTrieSimple", String::class.java)
+                val destroyTrie = clazz.getMethod("destroyTrie", Long::class.javaPrimitiveType)
+                val trieHandle = loadTrie.invoke(null, dictionary.absolutePath) as? Long
+                    ?: error("FUTO swipe dictionary did not return a trie handle")
+                if (trieHandle == 0L) error("FUTO swipe dictionary returned an empty trie handle")
                 val resultClass = Class.forName("$CLASS_NAME\$Result")
                 FutoSwipeDecoderAdapter(
                     instance,
+                    trieHandle,
                     recognize,
                     setMode,
+                    destroyTrie,
                     resultClass.getMethod("getWord"),
                     resultClass.getMethod("getScore")
                 )
@@ -134,19 +156,36 @@ class FutoSwipeDecoderAdapter private constructor(
             }.getOrNull()
         }
 
+        private fun findDictionary(root: File, pinyinMode: Boolean): File? =
+            if (pinyinMode) {
+                findFirstExisting(
+                    root.resolve("vocabs/pinyin.combined"),
+                    root.resolve("pinyin.combined"),
+                    root.resolve("pinyin/pinyin.combined")
+                )
+            } else {
+                findFirstExisting(
+                    root.resolve("vocabs/en.combined"),
+                    root.resolve("en.combined"),
+                    root.resolve("vocabs/en_wordlist.combined"),
+                    root.resolve("en_wordlist.combined"),
+                    root.resolve("en_US_wordlist.combined")
+                )
+            }
+
         private fun findFirstExisting(vararg files: File): File? =
             files.firstOrNull { it.isFile }
     }
 }
 
+object UnavailableSwipeDecoder : SwipeTypingDecoder {
+    override fun recognize(request: SwipeRecognitionRequest, topK: Int): List<SwipeCandidate> =
+        emptyList()
+}
+
 object SwipeTypingDecoders {
     fun create(context: Context, pinyinMode: Boolean): SwipeTypingDecoder {
         val root = SwipeAssets.prepare(context)
-        val dictionary = SwipeAssets.readDictionary(root, pinyinMode)
-        return if (pinyinMode) {
-            TraceShapeSwipeDecoder(dictionary)
-        } else {
-            FutoSwipeDecoderAdapter.create(root) ?: TraceShapeSwipeDecoder(dictionary)
-        }
+        return FutoSwipeDecoderAdapter.create(root, pinyinMode) ?: UnavailableSwipeDecoder
     }
 }

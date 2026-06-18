@@ -152,7 +152,7 @@
     <string name="theme_migrated">主题已迁移到当前版本</string>
     <string name="keep_keyboard_letters_uppercase">键盘字母保持大写</string>
     <string name="swipe_typing">滑行输入</string>
-    <string name="swipe_typing_summary">实验功能：在字母键间滑动输入英文单词或拼音。</string>
+    <string name="swipe_typing_summary">实验功能：安装模型资产后 powered by "FUTO Swipe" technology。开启后会禁用键盘区划动输入标点符号和数字。</string>
     <string name="choose_input_method">选择输入法</string>
     <string name="edit_clipboard">编辑剪贴板</string>
     <string name="clipboard_edit_text_hint">剪贴板内容</string>
