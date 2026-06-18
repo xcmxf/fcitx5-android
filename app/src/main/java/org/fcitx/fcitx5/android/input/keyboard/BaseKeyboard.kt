@@ -5,6 +5,9 @@
 package org.fcitx.fcitx5.android.input.keyboard
 
 import android.content.Context
+import android.graphics.Canvas
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.Rect
 import android.view.MotionEvent
 import android.view.View
@@ -31,6 +34,7 @@ import org.fcitx.fcitx5.android.input.swipe.SwipePoint
 import org.fcitx.fcitx5.android.input.swipe.SwipeRecognitionRequest
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoder
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoders
+import org.fcitx.fcitx5.android.utils.alpha
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.above
 import splitties.views.dsl.constraintlayout.below
@@ -97,7 +101,20 @@ abstract class BaseKeyboard(
     private var swipeTracking = false
     private var swipeIntercepted = false
     private val swipePoints = mutableListOf<SwipePoint>()
+    private val swipeVisualPoints = mutableListOf<Pair<Float, Float>>()
     private val swipeTrace = StringBuilder()
+    private val swipeTrailPath = Path()
+    private val swipeTrailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        strokeWidth = dp(5f)
+        color = theme.genericActiveBackgroundColor.alpha(0.72f)
+    }
+    private val swipeDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = theme.genericActiveBackgroundColor.alpha(0.9f)
+    }
 
     /**
      * HashMap of [PointerId (Int)][MotionEvent.getPointerId] to [KeyView]
@@ -483,6 +500,22 @@ abstract class BaseKeyboard(
         return super.onTouchEvent(event)
     }
 
+    override fun dispatchDraw(canvas: Canvas) {
+        super.dispatchDraw(canvas)
+        if (!swipeTracking || swipeVisualPoints.isEmpty()) return
+        if (swipeVisualPoints.size >= 2) {
+            swipeTrailPath.reset()
+            swipeVisualPoints.first().let { (x, y) -> swipeTrailPath.moveTo(x, y) }
+            for (i in 1 until swipeVisualPoints.size) {
+                val (x, y) = swipeVisualPoints[i]
+                swipeTrailPath.lineTo(x, y)
+            }
+            canvas.drawPath(swipeTrailPath, swipeTrailPaint)
+        }
+        val (x, y) = swipeVisualPoints.last()
+        canvas.drawCircle(x, y, dp(7f), swipeDotPaint)
+    }
+
     private fun handleSwipeIntercept(event: MotionEvent): Boolean {
         if (!swipeTyping) {
             resetSwipeTracking()
@@ -505,6 +538,7 @@ abstract class BaseKeyboard(
                 swipeTracking = true
                 swipeIntercepted = false
                 swipePoints.clear()
+                swipeVisualPoints.clear()
                 swipeTrace.clear()
                 appendSwipePoint(event, 0)
                 appendSwipeLetter(label)
@@ -575,10 +609,16 @@ abstract class BaseKeyboard(
     private fun appendSwipePoint(event: MotionEvent, pointerIndex: Int) {
         val keyboardWidth = max(1, width)
         val keyboardHeight = max(1, height)
-        val x = (event.getX(pointerIndex) / keyboardWidth).coerceIn(0f, 1f)
-        val y = (event.getY(pointerIndex) / keyboardHeight).coerceIn(0f, 1f)
+        val rawX = event.getX(pointerIndex)
+        val rawY = event.getY(pointerIndex)
+        val x = (rawX / keyboardWidth).coerceIn(0f, 1f)
+        val y = (rawY / keyboardHeight).coerceIn(0f, 1f)
         val t = (event.eventTime - swipeStartTime).coerceAtLeast(0L).toFloat()
         swipePoints.add(SwipePoint(x, y, t))
+        swipeVisualPoints.add(
+            rawX.coerceIn(0f, width.toFloat()) to rawY.coerceIn(0f, height.toFloat())
+        )
+        invalidate()
     }
 
     private fun appendSwipeLetter(label: String) {
@@ -596,8 +636,11 @@ abstract class BaseKeyboard(
             layout = layout,
             tracedLetters = swipeTrace.toString()
         )
+        val ime = currentInputMethod
+        val bridgeToFcitx = ime?.languageCode?.startsWith("zh") == true ||
+                ime?.uniqueName?.contains("pinyin", ignoreCase = true) == true
         val candidate = runCatching {
-            val decoder = swipeDecoder ?: SwipeTypingDecoders.create(context).also {
+            val decoder = swipeDecoder ?: SwipeTypingDecoders.create(context, bridgeToFcitx).also {
                 swipeDecoder = it
             }
             decoder.recognize(request).firstOrNull()
@@ -606,9 +649,6 @@ abstract class BaseKeyboard(
         }.getOrNull() ?: return
         val word = candidate.word
         if (word.isBlank()) return
-        val ime = currentInputMethod
-        val bridgeToFcitx = ime?.languageCode?.startsWith("zh") == true ||
-                ime?.uniqueName?.contains("pinyin", ignoreCase = true) == true
         onAction(
             if (bridgeToFcitx) KeyAction.FcitxKeySequenceAction(word)
             else KeyAction.CommitAction(word.lowercase())
@@ -634,7 +674,9 @@ abstract class BaseKeyboard(
         swipeTracking = false
         swipeIntercepted = false
         swipePoints.clear()
+        swipeVisualPoints.clear()
         swipeTrace.clear()
+        invalidate()
     }
 
     @CallSuper
@@ -680,6 +722,8 @@ abstract class BaseKeyboard(
 
     open fun onInputMethodUpdate(ime: InputMethodEntry) {
         currentInputMethod = ime
+        swipeDecoder?.close()
+        swipeDecoder = null
     }
 
     open fun onDetach() {

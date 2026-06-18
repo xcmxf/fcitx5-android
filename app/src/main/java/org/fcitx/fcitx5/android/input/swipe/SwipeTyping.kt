@@ -69,7 +69,7 @@ interface SwipeTypingDecoder : AutoCloseable {
 }
 
 class TraceShapeSwipeDecoder(
-    dictionary: Collection<String> = defaultDictionary
+    dictionary: Collection<String> = pinyinDictionary
 ) : SwipeTypingDecoder {
     private val dictionary = dictionary
         .asSequence()
@@ -170,7 +170,7 @@ class TraceShapeSwipeDecoder(
     }
 
     companion object {
-        val defaultDictionary = listOf(
+        val latinDictionary = listOf(
             "hello",
             "test",
             "keyboard",
@@ -185,7 +185,10 @@ class TraceShapeSwipeDecoder(
             "space",
             "delete",
             "candidate",
-            "pinyin",
+            "pinyin"
+        )
+
+        val pinyinDictionary = listOf(
             "nihao",
             "zhongguo",
             "zhongwen",

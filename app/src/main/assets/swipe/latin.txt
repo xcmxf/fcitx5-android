@@ -1,0 +1,10 @@
+# Latin smoke words
+hello
+test
+keyboard
+swipe
+typing
+android
+fcitx
+input
+candidate
