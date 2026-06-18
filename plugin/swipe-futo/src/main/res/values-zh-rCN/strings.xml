@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="description">为 Fcitx5 提供 FUTO Swipe 解码支持</string>
+</resources>

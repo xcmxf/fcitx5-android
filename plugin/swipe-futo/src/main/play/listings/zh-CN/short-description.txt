@@ -1,0 +1,1 @@
+为 Fcitx5 提供 FUTO Swipe 解码支持

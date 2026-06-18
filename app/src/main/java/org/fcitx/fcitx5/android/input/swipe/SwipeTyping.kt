@@ -63,6 +63,10 @@ data class SwipeCandidate(
 )
 
 interface SwipeTypingDecoder : AutoCloseable {
+    fun warmUp() {
+        // do nothing by default
+    }
+
     fun recognize(request: SwipeRecognitionRequest, topK: Int = 4): List<SwipeCandidate>
 
     override fun close() {

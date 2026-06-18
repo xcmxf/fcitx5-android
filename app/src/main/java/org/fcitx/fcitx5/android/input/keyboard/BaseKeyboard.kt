@@ -544,6 +544,7 @@ abstract class BaseKeyboard(
                 swipeTrace.clear()
                 appendSwipePoint(event, 0)
                 appendSwipeLetter(label)
+                getSwipeDecoder(SwipeTypingMode.usePinyinBridge(currentInputMethod)).warmUp()
             }
             MotionEvent.ACTION_POINTER_DOWN -> resetSwipeTracking()
             MotionEvent.ACTION_MOVE -> {
@@ -640,14 +641,7 @@ abstract class BaseKeyboard(
         )
         val bridgeToFcitx = SwipeTypingMode.usePinyinBridge(currentInputMethod)
         val candidate = runCatching {
-            val decoder = swipeDecoder.takeIf {
-                swipeDecoderPinyinMode == bridgeToFcitx
-            } ?: SwipeTypingDecoders.create(context, bridgeToFcitx).also {
-                swipeDecoder?.close()
-                swipeDecoder = it
-                swipeDecoderPinyinMode = bridgeToFcitx
-            }
-            decoder.recognize(request).firstOrNull()
+            getSwipeDecoder(bridgeToFcitx).recognize(request).firstOrNull()
         }.onFailure {
             Timber.w(it, "Swipe typing failed")
         }.getOrNull() ?: return
@@ -657,6 +651,16 @@ abstract class BaseKeyboard(
             if (bridgeToFcitx) KeyAction.FcitxKeySequenceAction(word)
             else KeyAction.CommitAction(word.lowercase())
         )
+    }
+
+    private fun getSwipeDecoder(bridgeToFcitx: Boolean): SwipeTypingDecoder {
+        return swipeDecoder.takeIf {
+            swipeDecoderPinyinMode == bridgeToFcitx
+        } ?: SwipeTypingDecoders.create(context, bridgeToFcitx).also {
+            swipeDecoder?.close()
+            swipeDecoder = it
+            swipeDecoderPinyinMode = bridgeToFcitx
+        }
     }
 
     private fun buildSwipeLayout(): SwipeLayout? {

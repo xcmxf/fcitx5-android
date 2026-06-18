@@ -41,7 +41,7 @@ jobs:
         uses: gradle/actions/setup-gradle@v5
 
       - name: Build release APK
-        run: ./gradlew :app:assembleRelease -PbuildABI=${{ matrix.abi }}
+        run: ./gradlew :app:assembleRelease :plugin:swipe-futo:assembleRelease -PbuildABI=${{ matrix.abi }}
 
       - name: Sign release APK
         run: |
@@ -53,23 +53,36 @@ jobs:
             APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
           fi
 
-          mkdir -p signed-apks
-          for apk in app/build/outputs/apk/release/*-unsigned.apk
-          do
-            base="$(basename "${apk}")"
-            signed="signed-apks/${base/-unsigned.apk/-debugsigned.apk}"
-            "${APKSIGNER}" sign \
-              --v4-signing-enabled false \
-              --ks nightly-debug.keystore \
-              --ks-pass pass:android \
-              --key-pass pass:android \
-              --out "${signed}" \
-              "${apk}"
-            "${APKSIGNER}" verify --verbose "${signed}"
-          done
+          sign_apks() {
+            local input_dir="$1"
+            local output_dir="$2"
+            mkdir -p "${output_dir}"
+            for apk in "${input_dir}"/*-unsigned.apk
+            do
+              base="$(basename "${apk}")"
+              signed="${output_dir}/${base/-unsigned.apk/-debugsigned.apk}"
+              "${APKSIGNER}" sign \
+                --v4-signing-enabled false \
+                --ks nightly-debug.keystore \
+                --ks-pass pass:android \
+                --key-pass pass:android \
+                --out "${signed}" \
+                "${apk}"
+              "${APKSIGNER}" verify --verbose "${signed}"
+            done
+          }
+
+          sign_apks app/build/outputs/apk/release signed-apks
+          sign_apks plugin/swipe-futo/build/outputs/apk/release signed-swipe-plugin-apks
 
       - name: Upload app
         uses: actions/upload-artifact@v6
         with:
           name: app-release-${{ matrix.abi }}
           path: signed-apks/
+
+      - name: Upload swipe plugin
+        uses: actions/upload-artifact@v6
+        with:
+          name: swipe-futo-plugin-release-${{ matrix.abi }}
+          path: signed-swipe-plugin-apks/

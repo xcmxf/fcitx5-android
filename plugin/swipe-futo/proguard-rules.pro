@@ -1,0 +1,3 @@
+-keep class org.fcitx.fcitx5.android.common.ipc.ISwipeDecoderService { *; }
+-keep class org.fcitx.fcitx5.android.common.ipc.ISwipeDecoderService$Stub { *; }
+-keep class org.fcitx.fcitx5.android.common.ipc.ISwipeDecoderService$Stub$Proxy { *; }
