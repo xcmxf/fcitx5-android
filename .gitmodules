@@ -56,3 +56,6 @@
 [submodule "plugin/thai/src/main/cpp/fcitx5-libthai"]
 	path = plugin/thai/src/main/cpp/fcitx5-libthai
 	url = https://github.com/fcitx/fcitx5-libthai
+[submodule "plugin/swipe-futo/third_party/futo-android-libs"]
+	path = plugin/swipe-futo/third_party/futo-android-libs
+	url = https://gitlab.futo.org/keyboard/android-libs.git

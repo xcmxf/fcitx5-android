@@ -86,6 +86,7 @@ abstract class BaseKeyboard(
 
     private val selectionSwipeThreshold = dp(10f)
     private val inputSwipeThreshold = dp(36f)
+    private val swipeVisualPointMinDistance = dp(4f)
 
     // a rather large threshold effectively disables swipe of the direction
     private val disabledSwipeThreshold = dp(800f)
@@ -106,16 +107,27 @@ abstract class BaseKeyboard(
     private val swipeVisualPoints = mutableListOf<Pair<Float, Float>>()
     private val swipeTrace = StringBuilder()
     private val swipeTrailPath = Path()
+    private val swipeTrailHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+        strokeJoin = Paint.Join.ROUND
+        strokeWidth = dp(13f)
+        color = theme.genericActiveBackgroundColor.alpha(0.18f)
+    }
     private val swipeTrailPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.STROKE
         strokeCap = Paint.Cap.ROUND
         strokeJoin = Paint.Join.ROUND
-        strokeWidth = dp(5f)
-        color = theme.genericActiveBackgroundColor.alpha(0.72f)
+        strokeWidth = dp(9f)
+        color = theme.genericActiveBackgroundColor.alpha(0.44f)
+    }
+    private val swipeDotHaloPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        style = Paint.Style.FILL
+        color = theme.genericActiveBackgroundColor.alpha(0.22f)
     }
     private val swipeDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
         style = Paint.Style.FILL
-        color = theme.genericActiveBackgroundColor.alpha(0.9f)
+        color = theme.genericActiveBackgroundColor.alpha(0.92f)
     }
 
     /**
@@ -505,17 +517,30 @@ abstract class BaseKeyboard(
     override fun dispatchDraw(canvas: Canvas) {
         super.dispatchDraw(canvas)
         if (!swipeTracking || swipeVisualPoints.isEmpty()) return
-        if (swipeVisualPoints.size >= 2) {
+        val visualPoints = smoothedSwipeVisualPoints()
+        if (visualPoints.size >= 2) {
             swipeTrailPath.reset()
-            swipeVisualPoints.first().let { (x, y) -> swipeTrailPath.moveTo(x, y) }
-            for (i in 1 until swipeVisualPoints.size) {
-                val (x, y) = swipeVisualPoints[i]
-                swipeTrailPath.lineTo(x, y)
+            visualPoints.first().let { (x, y) -> swipeTrailPath.moveTo(x, y) }
+            if (visualPoints.size == 2) {
+                visualPoints.last().let { (x, y) -> swipeTrailPath.lineTo(x, y) }
+            } else {
+                for (i in 1 until visualPoints.lastIndex) {
+                    val (x, y) = visualPoints[i]
+                    val (nextX, nextY) = visualPoints[i + 1]
+                    swipeTrailPath.quadTo(x, y, (x + nextX) / 2f, (y + nextY) / 2f)
+                }
+                visualPoints.last().let { (x, y) -> swipeTrailPath.lineTo(x, y) }
             }
-            canvas.drawPath(swipeTrailPath, swipeTrailPaint)
+            drawSwipeTrail(canvas)
         }
-        val (x, y) = swipeVisualPoints.last()
-        canvas.drawCircle(x, y, dp(7f), swipeDotPaint)
+        val (x, y) = visualPoints.last()
+        canvas.drawCircle(x, y, dp(10.5f), swipeDotHaloPaint)
+        canvas.drawCircle(x, y, dp(7.25f), swipeDotPaint)
+    }
+
+    private fun drawSwipeTrail(canvas: Canvas) {
+        canvas.drawPath(swipeTrailPath, swipeTrailHaloPaint)
+        canvas.drawPath(swipeTrailPath, swipeTrailPaint)
     }
 
     private fun handleSwipeIntercept(event: MotionEvent): Boolean {
@@ -618,10 +643,43 @@ abstract class BaseKeyboard(
         val y = (rawY / keyboardHeight).coerceIn(0f, 1f)
         val t = (event.eventTime - swipeStartTime).coerceAtLeast(0L).toFloat()
         swipePoints.add(SwipePoint(x, y, t))
-        swipeVisualPoints.add(
-            rawX.coerceIn(0f, width.toFloat()) to rawY.coerceIn(0f, height.toFloat())
-        )
+        val visualPoint = rawX.coerceIn(0f, width.toFloat()) to rawY.coerceIn(0f, height.toFloat())
+        val lastVisualPoint = swipeVisualPoints.lastOrNull()
+        if (lastVisualPoint == null || visualDistanceSquared(lastVisualPoint, visualPoint) >=
+            swipeVisualPointMinDistance * swipeVisualPointMinDistance
+        ) {
+            swipeVisualPoints.add(visualPoint)
+        } else {
+            swipeVisualPoints[swipeVisualPoints.lastIndex] = visualPoint
+        }
         invalidate()
+    }
+
+    private fun smoothedSwipeVisualPoints(): List<Pair<Float, Float>> {
+        if (swipeVisualPoints.size <= 2) return swipeVisualPoints
+
+        val points = ArrayList<Pair<Float, Float>>(swipeVisualPoints.size)
+        points += swipeVisualPoints.first()
+        for (i in 1 until swipeVisualPoints.lastIndex) {
+            val previous = swipeVisualPoints[i - 1]
+            val current = swipeVisualPoints[i]
+            val next = swipeVisualPoints[i + 1]
+            points += (
+                (previous.first + current.first * 2f + next.first) / 4f to
+                    (previous.second + current.second * 2f + next.second) / 4f
+                )
+        }
+        points += swipeVisualPoints.last()
+        return points
+    }
+
+    private fun visualDistanceSquared(
+        left: Pair<Float, Float>,
+        right: Pair<Float, Float>
+    ): Float {
+        val dx = left.first - right.first
+        val dy = left.second - right.second
+        return dx * dx + dy * dy
     }
 
     private fun appendSwipeLetter(label: String) {

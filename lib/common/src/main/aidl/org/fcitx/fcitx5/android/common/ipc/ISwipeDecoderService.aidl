@@ -14,4 +14,5 @@ interface ISwipeDecoderService {
       boolean pinyinMode,
       int topK
    );
+   void warmUp(boolean pinyinMode);
 }

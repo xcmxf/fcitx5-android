@@ -33,7 +33,14 @@ class SwipePluginDecoder(
     private val connection = SwipeDecoderPluginConnection(context.applicationContext)
 
     override fun warmUp() {
-        connection.connect()
+        connection.getOrConnect()?.let { service ->
+            runCatching {
+                service.warmUp(pinyinMode)
+            }.onFailure {
+                Timber.w(it, "Swipe decoder plugin warm-up failed")
+                connection.disconnect()
+            }
+        }
     }
 
     override fun recognize(request: SwipeRecognitionRequest, topK: Int): List<SwipeCandidate> {
@@ -176,11 +183,6 @@ private class SwipeDecoderPluginConnection(
 }
 
 private const val MISSING_PLUGIN_CHECK_INTERVAL_MS = 2_000L
-
-object UnavailableSwipeDecoder : SwipeTypingDecoder {
-    override fun recognize(request: SwipeRecognitionRequest, topK: Int): List<SwipeCandidate> =
-        emptyList()
-}
 
 object SwipeTypingDecoders {
     fun create(context: Context, pinyinMode: Boolean): SwipeTypingDecoder =
