@@ -791,6 +791,9 @@ abstract class BaseKeyboard(
         swipeDecoder?.close()
         swipeDecoder = null
         swipeDecoderPinyinMode = null
+        if (swipeTyping) {
+            getSwipeDecoder(SwipeTypingMode.usePinyinBridge(ime)).warmUp()
+        }
     }
 
     open fun onDetach() {
