@@ -92,6 +92,7 @@ abstract class BaseKeyboard(
     private val disabledSwipeThreshold = dp(800f)
 
     private val bounds = Rect()
+    private val keyboardLocation = intArrayOf(0, 0)
     private val keyRows: List<ConstraintLayout>
     private val swipeKeyLabels = hashMapOf<View, String>()
     private var swipeDecoder: SwipeTypingDecoder? = null
@@ -406,11 +407,11 @@ abstract class BaseKeyboard(
     }
 
     override fun onSizeChanged(w: Int, h: Int, oldw: Int, oldh: Int) {
-        val (x, y) = intArrayOf(0, 0).also { getLocationInWindow(it) }
-        bounds.set(x, y, x + width, y + height)
+        updateWindowBounds()
     }
 
     private fun findTargetChild(x: Float, y: Float): View? {
+        updateWindowBounds()
         if (bounds.height() <= 0 || keyRows.isEmpty()) return null
         val y0 = y.roundToInt()
         // assume all rows have equal height
@@ -418,7 +419,12 @@ abstract class BaseKeyboard(
         val x1 = x.roundToInt() + bounds.left
         val y1 = y0 + bounds.top
         return row.children.find {
-            if (it !is KeyView) false else it.bounds.contains(x1, y1)
+            if (it !is KeyView) {
+                false
+            } else {
+                it.updateBounds()
+                it.bounds.contains(x1, y1)
+            }
         }
     }
 
@@ -432,6 +438,8 @@ abstract class BaseKeyboard(
             Timber.w("child view is not KeyView when transforming MotionEvent $event")
             return event
         }
+        updateWindowBounds()
+        child.updateBounds()
         val childX = event.getX(pointerIndex) + bounds.left - child.bounds.left
         val childY = event.getY(pointerIndex) + bounds.top - child.bounds.top
         return MotionEvent.obtain(
@@ -722,9 +730,11 @@ abstract class BaseKeyboard(
     }
 
     private fun buildSwipeLayout(): SwipeLayout? {
+        updateWindowBounds()
         if (bounds.width() <= 0 || bounds.height() <= 0) return null
         val keys = swipeKeyLabels.mapNotNull { (view, label) ->
             val keyView = view as? KeyView ?: return@mapNotNull null
+            keyView.updateBounds()
             val keyBounds = keyView.bounds
             SwipeKey(
                 label,
@@ -733,6 +743,14 @@ abstract class BaseKeyboard(
             )
         }
         return keys.takeIf { it.isNotEmpty() }?.let(::SwipeLayout)
+    }
+
+    private fun updateWindowBounds() {
+        // Floating keyboard movement is applied via translationX/Y, which does not necessarily
+        // trigger layout or size callbacks. Keep window-coordinate hit testing in sync with the
+        // currently rendered position before using cached key bounds.
+        val (x, y) = keyboardLocation.also { getLocationInWindow(it) }
+        bounds.set(x, y, x + width, y + height)
     }
 
     private fun resetSwipeTracking() {
