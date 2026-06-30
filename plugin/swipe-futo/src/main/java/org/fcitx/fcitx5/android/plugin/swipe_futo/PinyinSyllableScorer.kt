@@ -1,0 +1,115 @@
+/*
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ * SPDX-FileCopyrightText: Copyright 2026 Fcitx5 for Android Contributors
+ */
+package org.fcitx.fcitx5.android.plugin.swipe_futo
+
+internal object PinyinSyllableScorer {
+
+    fun score(candidate: String): Float {
+        val normalized = normalizeCandidate(candidate)
+        if (normalized.isEmpty()) return 0f
+
+        val best = bestSegmentation(normalized)
+        val coverageScore = best.coveredChars.toFloat() / normalized.length.toFloat()
+        if (best.syllables == 0) return coverageScore * 0.72f
+
+        val averageSyllableLength = best.coveredChars.toFloat() / best.syllables.toFloat()
+        val compactnessScore = (averageSyllableLength / 3f).coerceIn(0f, 1f)
+        val strongSyllableScore = 1f - best.weakSyllables.toFloat() / best.syllables.toFloat()
+
+        return coverageScore * 0.72f +
+            compactnessScore * 0.18f +
+            strongSyllableScore * 0.10f
+    }
+
+    fun isStrongTraceCandidate(candidate: String): Boolean {
+        val normalized = normalizeCandidate(candidate)
+        return normalized.length >= MIN_TRACE_CANDIDATE_LENGTH &&
+            score(normalized) >= STRONG_TRACE_CANDIDATE_THRESHOLD
+    }
+
+    private fun bestSegmentation(input: String): SegmentationScore {
+        val best = Array(input.length + 1) { SegmentationScore() }
+        for (index in input.indices) {
+            val current = best[index]
+            best[index + 1] = maxOf(best[index + 1], current.skipped(), SegmentationScore::compareTo)
+            for (end in index + 1..minOf(input.length, index + MAX_SYLLABLE_LENGTH)) {
+                val syllable = input.substring(index, end)
+                if (syllable !in VALID_SYLLABLES) continue
+                val candidate = current.matched(syllable)
+                best[end] = maxOf(best[end], candidate, SegmentationScore::compareTo)
+            }
+        }
+        return best.last()
+    }
+
+    private fun normalizeCandidate(candidate: String): String =
+        buildString(candidate.length) {
+            candidate.forEach { character ->
+                val normalized = character.lowercaseChar()
+                if (normalized in 'a'..'z') append(normalized)
+            }
+        }
+
+    private data class SegmentationScore(
+        val coveredChars: Int = 0,
+        val weakSyllables: Int = 0,
+        val syllables: Int = 0,
+        val skippedChars: Int = 0
+    ) : Comparable<SegmentationScore> {
+        fun matched(syllable: String) = copy(
+            coveredChars = coveredChars + syllable.length,
+            weakSyllables = weakSyllables + if (syllable in WEAK_STANDALONE_SYLLABLES) 1 else 0,
+            syllables = syllables + 1
+        )
+
+        fun skipped() = copy(skippedChars = skippedChars + 1)
+
+        override fun compareTo(other: SegmentationScore): Int =
+            compareValuesBy(
+                this,
+                other,
+                { it.coveredChars },
+                { -it.weakSyllables },
+                { -it.syllables },
+                { -it.skippedChars }
+            )
+    }
+
+    private const val MAX_SYLLABLE_LENGTH = 6
+    private const val MIN_TRACE_CANDIDATE_LENGTH = 2
+    private const val STRONG_TRACE_CANDIDATE_THRESHOLD = 0.93f
+
+    private val WEAK_STANDALONE_SYLLABLES = setOf("a", "e", "o")
+
+    private val VALID_SYLLABLES = """
+        a ai an ang ao e ei en eng er o ou
+        ya yan yang yao ye yi yin ying yo yong you yu yuan yue yun
+        wa wai wan wang wei wen weng wo wu
+        ba bai ban bang bao bei ben beng bi bian biao bie bin bing bo bu
+        pa pai pan pang pao pei pen peng pi pian piao pie pin ping po pou pu
+        ma mai man mang mao me mei men meng mi mian miao mie min ming miu mo mou mu
+        fa fan fang fei fen feng fo fou fu
+        da dai dan dang dao de dei deng di dian diao die ding diu dong dou du duan dui dun duo
+        ta tai tan tang tao te teng ti tian tiao tie ting tong tou tu tuan tui tun tuo
+        na nai nan nang nao ne nei nen neng ni nian niang niao nie nin ning niu nong nou nu nuan nuo nv nve
+        la lai lan lang lao le lei leng li lia lian liang liao lie lin ling liu lo long lou lu luan lun luo lv lve
+        ga gai gan gang gao ge gei gen geng gong gou gu gua guai guan guang gui gun guo
+        ka kai kan kang kao ke ken keng kong kou ku kua kuai kuan kuang kui kun kuo
+        ha hai han hang hao he hei hen heng hong hou hu hua huai huan huang hui hun huo
+        ji jia jian jiang jiao jie jin jing jiong jiu ju juan jue jun
+        qi qia qian qiang qiao qie qin qing qiong qiu qu quan que qun
+        xi xia xian xiang xiao xie xin xing xiong xiu xu xuan xue xun
+        zha zhai zhan zhang zhao zhe zhei zhen zheng zhi zhong zhou zhu zhua zhuai zhuan zhuang zhui zhun zhuo
+        cha chai chan chang chao che chen cheng chi chong chou chu chua chuai chuan chuang chui chun chuo
+        sha shai shan shang shao she shei shen sheng shi shou shu shua shuai shuan shuang shui shun shuo
+        ran rang rao re ren reng ri rong rou ru ruan rui run ruo
+        za zai zan zang zao ze zei zen zeng zi zong zou zu zuan zui zun zuo
+        ca cai can cang cao ce cen ceng ci cong cou cu cuan cui cun cuo
+        sa sai san sang sao se sen seng si song sou su suan sui sun suo
+    """.trimIndent()
+        .split(Regex("\\s+"))
+        .filter { it.isNotEmpty() }
+        .toSet()
+}

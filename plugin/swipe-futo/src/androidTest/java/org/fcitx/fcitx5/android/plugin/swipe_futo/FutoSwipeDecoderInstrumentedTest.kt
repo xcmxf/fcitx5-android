@@ -44,6 +44,19 @@ class FutoSwipeDecoderInstrumentedTest {
         assertTrue(result.take(4).contains("shifou"))
     }
 
+    @Test
+    fun recognizesShiFouShiFromSyntheticQwertySwipe() {
+        val result = decodePinyin(
+            geometricWord = "shifoushi",
+            tracedLetters = "shifoushi"
+        )
+
+        assertTrue(
+            "Expected shifoushi in top results, got $result",
+            result.take(4).contains("shifoushi")
+        )
+    }
+
     private fun decodePinyin(
         geometricWord: String,
         tracedLetters: String

@@ -156,7 +156,8 @@ private class FutoSwipeSession(
         val layoutCenters = buildLayoutCenters(letters, centerX, centerY)
         val directTrace = SwipeTraceSignals.normalize(tracedLetters)
         val inferredTrace = buildObservedTrace(x, y, letters, centerX, centerY)
-        return reorderCandidates(rawCandidates, directTrace, inferredTrace, x, y, layoutCenters)
+        val candidates = appendStrongTraceCandidates(rawCandidates, directTrace)
+        return reorderCandidates(candidates, directTrace, inferredTrace, x, y, layoutCenters)
             .take(requestedTopK)
             .map { it.word }
     }
@@ -191,17 +192,40 @@ private class FutoSwipeSession(
                     directTrace = directTrace,
                     inferredTrace = inferredTrace
                 )
-                val totalScore = geometryScore * 0.62f + traceScore * 0.26f + subsequenceScore * 0.12f
-                CandidateScore(candidate, totalScore, geometryScore, traceScore, subsequenceScore)
+                val syllableScore = PinyinSyllableScorer.score(candidate.word)
+                val totalScore = geometryScore * 0.56f +
+                    traceScore * 0.22f +
+                    subsequenceScore * 0.10f +
+                    syllableScore * 0.12f
+                CandidateScore(
+                    candidate,
+                    totalScore,
+                    geometryScore,
+                    traceScore,
+                    subsequenceScore,
+                    syllableScore
+                )
             }
             .sortedWith(
                 compareByDescending<CandidateScore> { it.totalScore }
                     .thenByDescending { it.geometryScore }
                     .thenByDescending { it.traceScore }
                     .thenByDescending { it.subsequenceScore }
+                    .thenByDescending { it.syllableScore }
                     .thenBy { it.candidate.rank }
             )
             .map { it.candidate }
+    }
+
+    private fun appendStrongTraceCandidates(
+        candidates: List<RankedCandidate>,
+        directTrace: String
+    ): List<RankedCandidate> {
+        if (!traceRescoring || !PinyinSyllableScorer.isStrongTraceCandidate(directTrace)) {
+            return candidates
+        }
+        return (candidates + RankedCandidate(directTrace, candidates.size))
+            .distinctBy { it.word }
     }
 
     private fun buildLayoutCenters(
@@ -350,7 +374,8 @@ private class FutoSwipeSession(
         val totalScore: Float,
         val geometryScore: Float,
         val traceScore: Float,
-        val subsequenceScore: Float
+        val subsequenceScore: Float,
+        val syllableScore: Float
     )
 
     private fun isLatinAlphabet(letters: String): Boolean =

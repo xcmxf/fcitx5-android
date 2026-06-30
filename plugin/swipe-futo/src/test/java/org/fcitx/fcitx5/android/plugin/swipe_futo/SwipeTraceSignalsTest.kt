@@ -52,4 +52,26 @@ class SwipeTraceSignalsTest {
 
         assertTrue(intended > typo)
     }
+
+    @Test
+    fun pinyinSyllableScorePenalizesAwkwardImplicitSplits() {
+        assertTrue(PinyinSyllableScorer.score("fou") > PinyinSyllableScorer.score("fuo"))
+        assertTrue(
+            PinyinSyllableScorer.score("shifoushi") >
+                PinyinSyllableScorer.score("shifuosi")
+        )
+    }
+
+    @Test
+    fun pinyinSyllableScoreKeepsCommonPinyinStrong() {
+        assertTrue(PinyinSyllableScorer.score("nihao") > 0.95f)
+        assertTrue(PinyinSyllableScorer.score("zhongguo") > 0.95f)
+    }
+
+    @Test
+    fun pinyinSyllableScoreIdentifiesStrongTraceFallbacks() {
+        assertTrue(PinyinSyllableScorer.isStrongTraceCandidate("shifoushi"))
+        assertTrue(!PinyinSyllableScorer.isStrongTraceCandidate("shifuosi"))
+        assertTrue(!PinyinSyllableScorer.isStrongTraceCandidate("fuo"))
+    }
 }
