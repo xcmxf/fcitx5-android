@@ -21,7 +21,7 @@ import timber.log.Timber
 private const val SWIPE_DECODER_PLUGIN_NAME = "swipe_futo"
 
 object SwipePluginContract {
-    const val API_VERSION = 1
+    const val API_VERSION = 2
     const val SERVICE_ACTION = "${BuildConfig.APPLICATION_ID}.plugin.SWIPE_DECODER"
 }
 
@@ -60,6 +60,7 @@ class SwipePluginDecoder(
                 FloatArray(points.size) { points[it].y },
                 FloatArray(points.size) { points[it].t },
                 request.layout.letters,
+                request.tracedLetters,
                 request.layout.centerX,
                 request.layout.centerY,
                 pinyinMode,

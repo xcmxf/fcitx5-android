@@ -16,7 +16,7 @@ internal data class FutoSwipeFiles(
 /** Keeps FUTO's mmap-backed model files out of the APK asset container. */
 internal object FutoSwipeAssets {
     private const val ASSET_ROOT = "futo-swipe"
-    private const val VERSION = "futo-swipe-2026-06-25-r2"
+    private const val VERSION = "futo-swipe-2026-06-27-r3"
 
     fun prepare(context: Context): FutoSwipeFiles {
         val root = context.createDeviceProtectedStorageContext().noBackupFilesDir.resolve(ASSET_ROOT)

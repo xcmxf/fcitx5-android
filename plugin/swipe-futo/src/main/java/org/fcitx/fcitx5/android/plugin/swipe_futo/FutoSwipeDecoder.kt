@@ -37,6 +37,7 @@ internal class FutoSwipeDecoder(context: Context) : Closeable {
         y: FloatArray?,
         t: FloatArray?,
         letters: String?,
+        tracedLetters: String?,
         centerX: FloatArray?,
         centerY: FloatArray?,
         pinyinMode: Boolean,
@@ -50,7 +51,16 @@ internal class FutoSwipeDecoder(context: Context) : Closeable {
         }
 
         return runCatching {
-            sessionFor(pinyinMode).recognize(x, y, t, letters, centerX, centerY, topK)
+            sessionFor(pinyinMode).recognize(
+                x = x,
+                y = y,
+                t = t,
+                letters = letters,
+                tracedLetters = tracedLetters,
+                centerX = centerX,
+                centerY = centerY,
+                topK = topK
+            )
         }.onFailure {
             lastError = it.message ?: it.javaClass.simpleName
             Timber.w(it, "FUTO Swipe recognition failed")
@@ -104,6 +114,7 @@ private class FutoSwipeSession(
         y: FloatArray,
         t: FloatArray,
         letters: String,
+        tracedLetters: String?,
         centerX: FloatArray,
         centerY: FloatArray,
         topK: Int
@@ -143,8 +154,9 @@ private class FutoSwipeSession(
             }
             .distinctBy { it.word }
         val layoutCenters = buildLayoutCenters(letters, centerX, centerY)
-        val observedTrace = buildObservedTrace(x, y, letters, centerX, centerY)
-        return reorderCandidates(rawCandidates, observedTrace, x, y, layoutCenters)
+        val directTrace = SwipeTraceSignals.normalize(tracedLetters)
+        val inferredTrace = buildObservedTrace(x, y, letters, centerX, centerY)
+        return reorderCandidates(rawCandidates, directTrace, inferredTrace, x, y, layoutCenters)
             .take(requestedTopK)
             .map { it.word }
     }
@@ -156,7 +168,8 @@ private class FutoSwipeSession(
 
     private fun reorderCandidates(
         candidates: List<RankedCandidate>,
-        observedTrace: String,
+        directTrace: String,
+        inferredTrace: String,
         x: FloatArray,
         y: FloatArray,
         layoutCenters: Map<Char, NormalizedPoint>
@@ -168,9 +181,17 @@ private class FutoSwipeSession(
         return candidates
             .map { candidate ->
                 val geometryScore = pathSimilarity(candidate.word, observedPoints, layoutCenters)
-                val traceScore = traceSimilarity(candidate.word, observedTrace)
-                val subsequenceScore = subsequenceCoverage(candidate.word, observedTrace)
-                val totalScore = geometryScore * 0.68f + traceScore * 0.22f + subsequenceScore * 0.10f
+                val traceScore = SwipeTraceSignals.blendedTraceSimilarity(
+                    candidate = candidate.word,
+                    directTrace = directTrace,
+                    inferredTrace = inferredTrace
+                )
+                val subsequenceScore = SwipeTraceSignals.blendedSubsequenceCoverage(
+                    candidate = candidate.word,
+                    directTrace = directTrace,
+                    inferredTrace = inferredTrace
+                )
+                val totalScore = geometryScore * 0.62f + traceScore * 0.26f + subsequenceScore * 0.12f
                 CandidateScore(candidate, totalScore, geometryScore, traceScore, subsequenceScore)
             }
             .sortedWith(
@@ -226,28 +247,6 @@ private class FutoSwipeSession(
                 if (isEmpty() || last() != letter) append(letter)
             }
         }
-    }
-
-    private fun traceSimilarity(candidate: String, observedTrace: String): Float {
-        if (observedTrace.isEmpty()) return 0f
-        val maxLength = maxOf(candidate.length, observedTrace.length)
-        if (maxLength == 0) return 0f
-
-        val normalizedEditScore =
-            1f - levenshteinDistance(candidate, observedTrace).toFloat() / maxLength.toFloat()
-        val lcsScore = longestCommonSubsequenceLength(candidate, observedTrace).toFloat() /
-            maxOf(candidate.length, observedTrace.length).toFloat()
-        var bonus = 0f
-        if (candidate.firstOrNull() == observedTrace.firstOrNull()) bonus += 0.12f
-        if (candidate.lastOrNull() == observedTrace.lastOrNull()) bonus += 0.12f
-        if (candidate.contains(observedTrace) || observedTrace.contains(candidate)) bonus += 0.08f
-        return normalizedEditScore * 0.55f + lcsScore * 0.45f + bonus
-    }
-
-    private fun subsequenceCoverage(candidate: String, observedTrace: String): Float {
-        if (candidate.isEmpty() || observedTrace.isEmpty()) return 0f
-        return longestCommonSubsequenceLength(candidate, observedTrace).toFloat() /
-            candidate.length.toFloat()
     }
 
     private fun pathSimilarity(
@@ -343,45 +342,6 @@ private class FutoSwipeSession(
             (left.y - right.y).toDouble()
         ).toFloat()
 
-    private fun levenshteinDistance(left: String, right: String): Int {
-        if (left == right) return 0
-        if (left.isEmpty()) return right.length
-        if (right.isEmpty()) return left.length
-
-        val previous = IntArray(right.length + 1) { it }
-        val current = IntArray(right.length + 1)
-        left.forEachIndexed { leftIndex, leftChar ->
-            current[0] = leftIndex + 1
-            right.forEachIndexed { rightIndex, rightChar ->
-                val substitutionCost = if (leftChar == rightChar) 0 else 1
-                current[rightIndex + 1] = minOf(
-                    current[rightIndex] + 1,
-                    previous[rightIndex + 1] + 1,
-                    previous[rightIndex] + substitutionCost
-                )
-            }
-            previous.indices.forEach { previous[it] = current[it] }
-        }
-        return previous[right.length]
-    }
-
-    private fun longestCommonSubsequenceLength(left: String, right: String): Int {
-        if (left.isEmpty() || right.isEmpty()) return 0
-
-        val previous = IntArray(right.length + 1)
-        val current = IntArray(right.length + 1)
-        left.forEach { leftChar ->
-            right.forEachIndexed { rightIndex, rightChar ->
-                current[rightIndex + 1] = if (leftChar == rightChar) {
-                    previous[rightIndex] + 1
-                } else {
-                    maxOf(previous[rightIndex + 1], current[rightIndex])
-                }
-            }
-            previous.indices.forEach { previous[it] = current[it] }
-        }
-        return previous[right.length]
-    }
 
     private data class RankedCandidate(val word: String, val rank: Int)
     private data class NormalizedPoint(val x: Float, val y: Float)

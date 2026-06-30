@@ -4,6 +4,7 @@ import java.net.URL
 import java.security.MessageDigest
 import java.util.zip.GZIPInputStream
 import kotlin.math.log2
+import kotlin.math.pow
 import kotlin.math.roundToInt
 
 plugins {
@@ -20,6 +21,7 @@ android {
     defaultConfig {
         applicationId = "org.fcitx.fcitx5.android.plugin.swipe_futo"
         minSdk = 24
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         @Suppress("UnstableApiUsage")
         externalNativeBuild {
@@ -60,9 +62,15 @@ data class DownloadedAsset(
     val sha256: String
 )
 
+data class PinyinEntryStats(
+    var entryCount: Int = 0,
+    var weightedUsage: Double = 0.0,
+    var maxSyllableCount: Int = 1
+)
+
 val downloadFutoSwipeAssets by tasks.registering {
     description = "Downloads the pinned FUTO Swipe model and vocabularies."
-    inputs.property("generatedAssetLayoutVersion", 3)
+    inputs.property("generatedAssetLayoutVersion", 4)
     outputs.dir(futoSwipeAssets)
     outputs.dir(futoSwipeWorkspace)
 
@@ -121,26 +129,43 @@ val downloadFutoSwipeAssets by tasks.registering {
             }
         }
 
-        fun buildPinyinFrequency(word: String, entryCount: Int): Int {
-            val ambiguityBonus = minOf(48, (log2((entryCount + 1).toDouble()) * 12.0).roundToInt())
-            val phraseBonus = minOf(24, ((word.length - 2).coerceAtLeast(0) / 2) * 3)
-            return (140 + ambiguityBonus + phraseBonus).coerceAtMost(212)
+        fun buildPinyinFrequency(stats: PinyinEntryStats): Int {
+            val ambiguityBonus = minOf(
+                32,
+                (log2((stats.entryCount + 1).toDouble()) * 7.0).roundToInt()
+            )
+            val usageBonus = minOf(
+                12,
+                (log2(stats.weightedUsage + 1.0) * 4.0).roundToInt()
+            )
+            val syllableBonus = minOf(
+                16,
+                (stats.maxSyllableCount - 1).coerceAtLeast(0) * 8
+            )
+            return (132 + ambiguityBonus + usageBonus + syllableBonus).coerceAtMost(212)
         }
 
         fun generatePinyinDictionary(target: File, sources: List<File>) {
-            val entryCounts = linkedMapOf<String, Int>()
+            val entryStats = linkedMapOf<String, PinyinEntryStats>()
             sources.forEach { source ->
                 source.useLines { lines ->
                     lines.forEach { line ->
                         val parts = line.split('\t')
                         if (parts.size < 2) return@forEach
-                        val word = buildString(parts[1].length) {
-                            parts[1].lowercase().forEach { character ->
+                        val rawPinyin = parts[1].lowercase()
+                        val word = buildString(rawPinyin.length) {
+                            rawPinyin.forEach { character ->
                                 if (character in 'a'..'z') append(character)
                             }
                         }
                         if (word.length !in 2..24) return@forEach
-                        entryCounts[word] = (entryCounts[word] ?: 0) + 1
+                        val sourceScore = parts.getOrNull(2)?.toDoubleOrNull() ?: 0.0
+                        val usageWeight = if (sourceScore == 0.0) 1.0 else 10.0.pow(sourceScore)
+                        val syllableCount = rawPinyin.count { it == '\'' } + 1
+                        val stats = entryStats.getOrPut(word, ::PinyinEntryStats)
+                        stats.entryCount += 1
+                        stats.weightedUsage += usageWeight
+                        stats.maxSyllableCount = maxOf(stats.maxSyllableCount, syllableCount)
                     }
                 }
             }
@@ -150,16 +175,19 @@ val downloadFutoSwipeAssets by tasks.registering {
                 writer.appendLine(
                     "dictionary=main:zh-pinyin,locale=zh,description=Fcitx5 Pinyin Swipe,version=2"
                 )
-                entryCounts.entries
+                entryStats.entries
                     .sortedWith(
-                        compareByDescending<Map.Entry<String, Int>> {
-                            buildPinyinFrequency(it.key, it.value)
+                        compareByDescending<Map.Entry<String, PinyinEntryStats>> {
+                            buildPinyinFrequency(it.value)
                         }
+                            .thenByDescending { it.value.weightedUsage }
+                            .thenByDescending { it.value.entryCount }
+                            .thenByDescending { it.value.maxSyllableCount }
                             .thenByDescending { it.key.length }
                             .thenBy { it.key }
                     )
-                    .forEach { (word, count) ->
-                        writer.appendLine("word=$word,f=${buildPinyinFrequency(word, count)}")
+                    .forEach { (word, stats) ->
+                        writer.appendLine("word=$word,f=${buildPinyinFrequency(stats)}")
                     }
             }
         }
@@ -256,4 +284,7 @@ dependencies {
     implementation(project(":lib:plugin-base"))
     implementation(files("third_party/futo-android-libs/futo-swipe-release.aar"))
     implementation(libs.timber)
+    testImplementation(libs.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.junit)
 }

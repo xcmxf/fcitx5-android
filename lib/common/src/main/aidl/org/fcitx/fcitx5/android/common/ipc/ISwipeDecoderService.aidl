@@ -9,6 +9,7 @@ interface ISwipeDecoderService {
       in float[] y,
       in float[] t,
       String letters,
+      String tracedLetters,
       in float[] centerX,
       in float[] centerY,
       boolean pinyinMode,

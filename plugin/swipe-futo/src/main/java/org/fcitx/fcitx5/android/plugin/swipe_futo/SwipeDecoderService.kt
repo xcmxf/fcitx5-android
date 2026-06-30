@@ -36,6 +36,7 @@ class SwipeDecoderService : Service() {
             y: FloatArray?,
             t: FloatArray?,
             letters: String?,
+            tracedLetters: String?,
             centerX: FloatArray?,
             centerY: FloatArray?,
             pinyinMode: Boolean,
@@ -45,6 +46,7 @@ class SwipeDecoderService : Service() {
             y = y,
             t = t,
             letters = letters,
+            tracedLetters = tracedLetters,
             centerX = centerX,
             centerY = centerY,
             pinyinMode = pinyinMode,
@@ -66,6 +68,6 @@ class SwipeDecoderService : Service() {
     }
 
     companion object {
-        private const val API_VERSION = 1
+        private const val API_VERSION = 2
     }
 }
