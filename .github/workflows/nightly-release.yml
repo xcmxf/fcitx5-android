@@ -122,17 +122,32 @@ jobs:
 
       - name: Build nightly APKs
         run: |
-          mkdir -p unsigned-assets
+          shopt -s nullglob
+
+          collect_unsigned_apks() {
+            local source_dir="$1"
+            local target_dir="$2"
+            local apks=("${source_dir}"/*-unsigned.apk)
+            if [ "${#apks[@]}" -eq 0 ]; then
+              echo "No unsigned APKs found in ${source_dir}" >&2
+              exit 1
+            fi
+            cp "${apks[@]}" "${target_dir}/"
+          }
+
+          mkdir -p unsigned-assets/app unsigned-assets/swipe-futo
           for abi in arm64-v8a x86_64
           do
-            rm -rf app/build/outputs/apk/release
-            ./gradlew :app:assembleRelease -PbuildABI="${abi}"
-            cp app/build/outputs/apk/release/*-unsigned.apk unsigned-assets/
+            rm -rf app/build/outputs/apk/release plugin/swipe-futo/build/outputs/apk/release
+            ./gradlew :app:assembleRelease :plugin:swipe-futo:assembleRelease -PbuildABI="${abi}"
+            collect_unsigned_apks app/build/outputs/apk/release unsigned-assets/app
+            collect_unsigned_apks plugin/swipe-futo/build/outputs/apk/release unsigned-assets/swipe-futo
           done
 
       - name: Sign nightly APKs
         run: |
           base64 -d .github/nightly-debug.keystore.b64 > nightly-debug.keystore
+          shopt -s nullglob
 
           APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
           if [ -z "${APKSIGNER}" ]; then
@@ -140,20 +155,31 @@ jobs:
             APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -name apksigner -type f | sort -V | tail -n 1)"
           fi
 
-          mkdir -p release-assets
-          for apk in unsigned-assets/*-unsigned.apk
-          do
-            base="$(basename "${apk}")"
-            signed="release-assets/${base/-unsigned.apk/-debugsigned.apk}"
-            "${APKSIGNER}" sign \
-              --v4-signing-enabled false \
-              --ks nightly-debug.keystore \
-              --ks-pass pass:android \
-              --key-pass pass:android \
-              --out "${signed}" \
-              "${apk}"
-            "${APKSIGNER}" verify --verbose "${signed}"
-          done
+          sign_apks() {
+            local input_dir="$1"
+            local apks=("${input_dir}"/*-unsigned.apk)
+            if [ "${#apks[@]}" -eq 0 ]; then
+              echo "No unsigned APKs found in ${input_dir}" >&2
+              exit 1
+            fi
+            mkdir -p release-assets
+            for apk in "${apks[@]}"
+            do
+              base="$(basename "${apk}")"
+              signed="release-assets/${base/-unsigned.apk/-debugsigned.apk}"
+              "${APKSIGNER}" sign \
+                --v4-signing-enabled false \
+                --ks nightly-debug.keystore \
+                --ks-pass pass:android \
+                --key-pass pass:android \
+                --out "${signed}" \
+                "${apk}"
+              "${APKSIGNER}" verify --verbose "${signed}"
+            done
+          }
+
+          sign_apks unsigned-assets/app
+          sign_apks unsigned-assets/swipe-futo
 
       - name: Prepare release notes
         run: |
@@ -163,6 +189,7 @@ jobs:
             echo "- Synced upstream: ${UPSTREAM_REPO}@${UPSTREAM_BRANCH}"
             echo "- Target branch: ${TARGET_BRANCH}"
             echo "- Built ABIs: arm64-v8a, x86_64"
+            echo "- Included artifacts: app, swipe-futo plugin"
             echo "- Signing: fixed nightly debug key"
             echo
             echo "Commit:"
