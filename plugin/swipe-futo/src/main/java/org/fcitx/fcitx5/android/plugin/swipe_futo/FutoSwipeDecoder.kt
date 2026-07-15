@@ -8,6 +8,7 @@ import android.content.Context
 import org.futo.ml.inference.SwipeDecoder
 import timber.log.Timber
 import java.io.Closeable
+import java.util.Locale
 import kotlin.math.hypot
 
 /** Owns the GPL FUTO decoder and its model/dictionary state inside the plugin process. */
@@ -148,7 +149,7 @@ private class FutoSwipeSession(
         }
         val rawCandidates = decoder.recognize(x, y, t, rawTopK, beamWidth, null)
             .mapIndexedNotNull { index, result ->
-                result.word.trim().lowercase().takeIf { it.isNotEmpty() }?.let {
+                result.word.trim().lowercase(Locale.ROOT).takeIf { it.isNotEmpty() }?.let {
                     RankedCandidate(it, index)
                 }
             }
@@ -156,7 +157,11 @@ private class FutoSwipeSession(
         val layoutCenters = buildLayoutCenters(letters, centerX, centerY)
         val directTrace = SwipeTraceSignals.normalize(tracedLetters)
         val inferredTrace = buildObservedTrace(x, y, letters, centerX, centerY)
-        val candidates = appendStrongTraceCandidates(rawCandidates, directTrace)
+        val candidates = appendRepairCandidates(
+            appendStrongTraceCandidates(rawCandidates, directTrace, inferredTrace),
+            directTrace,
+            inferredTrace
+        )
         return reorderCandidates(candidates, directTrace, inferredTrace, x, y, layoutCenters)
             .take(requestedTopK)
             .map { it.word }
@@ -193,10 +198,10 @@ private class FutoSwipeSession(
                     inferredTrace = inferredTrace
                 )
                 val syllableScore = PinyinSyllableScorer.score(candidate.word)
-                val totalScore = geometryScore * 0.56f +
-                    traceScore * 0.22f +
-                    subsequenceScore * 0.10f +
-                    syllableScore * 0.12f
+                val totalScore = geometryScore * GEOMETRY_SCORE_WEIGHT +
+                    traceScore * TRACE_SCORE_WEIGHT +
+                    subsequenceScore * SUBSEQUENCE_SCORE_WEIGHT +
+                    syllableScore * SYLLABLE_SCORE_WEIGHT
                 CandidateScore(
                     candidate,
                     totalScore,
@@ -219,13 +224,42 @@ private class FutoSwipeSession(
 
     private fun appendStrongTraceCandidates(
         candidates: List<RankedCandidate>,
-        directTrace: String
+        vararg traces: String
     ): List<RankedCandidate> {
-        if (!traceRescoring || !PinyinSyllableScorer.isStrongTraceCandidate(directTrace)) {
+        if (!traceRescoring) {
             return candidates
         }
-        return (candidates + RankedCandidate(directTrace, candidates.size))
+
+        val traceCandidates = traces.asSequence()
+            .map(SwipeTraceSignals::normalize)
+            .filter(PinyinSyllableScorer::isStrongTraceCandidate)
+            .distinct()
+            .mapIndexed { index, trace -> RankedCandidate(trace, candidates.size + index) }
+            .toList()
+        if (traceCandidates.isEmpty()) return candidates
+
+        return (candidates + traceCandidates)
             .distinctBy { it.word }
+    }
+
+    private fun appendRepairCandidates(
+        candidates: List<RankedCandidate>,
+        vararg traces: String
+    ): List<RankedCandidate> {
+        if (!traceRescoring) return candidates
+
+        val sources = sequence {
+            yieldAll(candidates.asSequence().map { it.word })
+            yieldAll(traces.asSequence())
+        }
+        val repaired = sources
+            .flatMap(PinyinSyllableScorer::swipeRepairCandidates)
+            .distinct()
+            .mapIndexed { index, word -> RankedCandidate(word, candidates.size + index) }
+            .toList()
+        if (repaired.isEmpty()) return candidates
+
+        return (candidates + repaired).distinctBy { it.word }
     }
 
     private fun buildLayoutCenters(
@@ -389,5 +423,9 @@ private class FutoSwipeSession(
         const val ENGLISH_BEAM_WIDTH = 100
         const val PINYIN_BEAM_WIDTH = 224
         const val LATIN_ALPHABET = "abcdefghijklmnopqrstuvwxyz"
+        const val GEOMETRY_SCORE_WEIGHT = 0.52f
+        const val TRACE_SCORE_WEIGHT = 0.24f
+        const val SUBSEQUENCE_SCORE_WEIGHT = 0.08f
+        const val SYLLABLE_SCORE_WEIGHT = 0.16f
     }
 }

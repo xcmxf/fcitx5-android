@@ -25,36 +25,72 @@ class FutoSwipeDecoderInstrumentedTest {
     }
 
     @Test
-    fun recognizesNiHaoFromSyntheticQwertySwipe() {
-        val result = decodePinyin(
-            geometricWord = "nihao",
-            tracedLetters = "nihao"
+    fun recognizesCommonPinyinFromSyntheticQwertySwipe() {
+        val samples = listOf(
+            PinyinSwipeSample(expected = "nihao", topN = 3),
+            PinyinSwipeSample(expected = "xiexie"),
+            PinyinSwipeSample(expected = "zaijian"),
+            PinyinSwipeSample(expected = "zhongguo"),
+            PinyinSwipeSample(expected = "chongxin"),
+            PinyinSwipeSample(expected = "shuoshi"),
+            PinyinSwipeSample(expected = "shifou"),
+            PinyinSwipeSample(expected = "shifoushi"),
+            PinyinSwipeSample(expected = "zhongguoren"),
+            PinyinSwipeSample(expected = "meiyou"),
+            PinyinSwipeSample(expected = "keyi")
         )
 
-        assertTrue(result.take(3).contains("nihao"))
+        samples.forEach { sample ->
+            val result = decodePinyin(
+                geometricWord = sample.geometricWord,
+                tracedLetters = sample.tracedLetters
+            )
+
+            assertTrue(
+                "Expected ${sample.expected} in top ${sample.topN}, got $result",
+                result.take(sample.topN).contains(sample.expected)
+            )
+        }
     }
 
     @Test
-    fun recognizesShiFouFromSyntheticQwertySwipe() {
-        val result = decodePinyin(
-            geometricWord = "shifou",
-            tracedLetters = "shifou"
+    fun ranksHighConfidencePinyinFirst() {
+        val samples = listOf(
+            PinyinSwipeSample(expected = "nihao", topN = 1),
+            PinyinSwipeSample(expected = "shifou", topN = 1)
         )
 
-        assertTrue(result.take(4).contains("shifou"))
+        samples.forEach { sample ->
+            val result = decodePinyin(
+                geometricWord = sample.geometricWord,
+                tracedLetters = sample.tracedLetters
+            )
+
+            assertTrue(
+                "Expected ${sample.expected} as first result, got $result",
+                result.firstOrNull() == sample.expected
+            )
+        }
     }
 
     @Test
-    fun recognizesShiFouShiFromSyntheticQwertySwipe() {
-        val result = decodePinyin(
-            geometricWord = "shifoushi",
-            tracedLetters = "shifoushi"
+    fun recognizesStrongPinyinWhenDirectTraceIsMissing() {
+        val samples = listOf(
+            PinyinSwipeSample(expected = "shifoushi", tracedLetters = ""),
+            PinyinSwipeSample(expected = "zhongguo", tracedLetters = "")
         )
 
-        assertTrue(
-            "Expected shifoushi in top results, got $result",
-            result.take(4).contains("shifoushi")
-        )
+        samples.forEach { sample ->
+            val result = decodePinyin(
+                geometricWord = sample.geometricWord,
+                tracedLetters = sample.tracedLetters
+            )
+
+            assertTrue(
+                "Expected ${sample.expected} in top ${sample.topN}, got $result",
+                result.take(sample.topN).contains(sample.expected)
+            )
+        }
     }
 
     private fun decodePinyin(
@@ -148,6 +184,13 @@ class FutoSwipeDecoderInstrumentedTest {
         val centerX: FloatArray,
         val centerY: FloatArray,
         val positions: Map<Char, Point>
+    )
+
+    private data class PinyinSwipeSample(
+        val expected: String,
+        val geometricWord: String = expected,
+        val tracedLetters: String = expected,
+        val topN: Int = 4
     )
 
     private data class Point(val x: Float, val y: Float)

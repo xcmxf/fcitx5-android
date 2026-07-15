@@ -15,6 +15,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import org.fcitx.fcitx5.android.R
+import org.fcitx.fcitx5.android.core.CandidateWord
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
@@ -32,8 +33,10 @@ import org.fcitx.fcitx5.android.input.dependency.context
 import org.fcitx.fcitx5.android.input.dependency.fcitx
 import org.fcitx.fcitx5.android.input.dependency.inputView
 import org.fcitx.fcitx5.android.input.dependency.theme
+import org.fcitx.fcitx5.android.input.swipe.SwipeCandidate
 import org.mechdancer.dependency.manager.must
 import splitties.dimensions.dp
+import java.util.Locale
 import kotlin.math.max
 
 class HorizontalCandidateComponent :
@@ -66,6 +69,10 @@ class HorizontalCandidateComponent :
      */
     private var secondLayoutPassNeeded = false
     private var secondLayoutPassDone = false
+    private var fcitxCandidates: Array<CandidateWord> = emptyArray()
+    private var fcitxCandidateTotal = -1
+    private var transientSwipeCandidates: List<SwipeCandidate>? = null
+    private var transientSwipeCandidateSelect: ((SwipeCandidate) -> Unit)? = null
 
     // Since expanded candidate window is created once the expand button was clicked,
     // we need to replay the last offset
@@ -77,10 +84,11 @@ class HorizontalCandidateComponent :
     val expandedCandidateOffset = _expandedCandidateOffset.asSharedFlow()
 
     private fun refreshExpanded(childCount: Int) {
-        _expandedCandidateOffset.tryEmit(childCount)
+        val transientSwipe = transientSwipeCandidates != null
+        _expandedCandidateOffset.tryEmit(if (transientSwipe) 0 else childCount)
         bar.expandButtonStateMachine.push(
             ExpandedCandidatesUpdated,
-            ExpandedCandidatesEmpty to (adapter.total == childCount)
+            ExpandedCandidatesEmpty to (transientSwipe || adapter.total == childCount)
         )
     }
 
@@ -93,10 +101,25 @@ class HorizontalCandidateComponent :
                     flexGrow = layoutFlexGrow
                 }
                 holder.itemView.setOnClickListener {
-                    fcitx.launchOnReady { it.select(holder.idx) }
+                    val swipeCandidates = transientSwipeCandidates
+                    if (swipeCandidates != null) {
+                        swipeCandidates.getOrNull(holder.idx)?.let { candidate ->
+                            val selector = transientSwipeCandidateSelect
+                            clearTransientSwipeCandidates()
+                            selector?.invoke(candidate)
+                        }
+                    } else {
+                        fcitx.launchOnReady { it.select(holder.idx) }
+                    }
                 }
                 holder.itemView.setOnLongClickListener {
-                    inputView.showCandidateActionMenu(holder.idx, holder.candidate.text, holder.ui.root)
+                    if (transientSwipeCandidates == null) {
+                        inputView.showCandidateActionMenu(
+                            holder.idx,
+                            holder.candidate.text,
+                            holder.ui.root
+                        )
+                    }
                     true
                 }
             }
@@ -166,9 +189,56 @@ class HorizontalCandidateComponent :
         }
     }
 
+    fun showTransientSwipeCandidates(
+        candidates: List<SwipeCandidate>,
+        bridgeToFcitx: Boolean,
+        onCandidateSelected: (SwipeCandidate) -> Unit
+    ) {
+        val normalized = candidates.asSequence()
+            .map { candidate ->
+                candidate.copy(word = candidate.word.trim().lowercase(Locale.ROOT))
+            }
+            .filter { it.word.isNotBlank() }
+            .distinctBy { it.word }
+            .toList()
+        if (normalized.isEmpty()) {
+            clearTransientSwipeCandidates()
+            return
+        }
+
+        transientSwipeCandidates = normalized
+        transientSwipeCandidateSelect = onCandidateSelected
+        val words = normalized.mapIndexed { index, candidate ->
+            CandidateWord(
+                label = (index + 1).toString(),
+                text = if (bridgeToFcitx) {
+                    candidate.word
+                } else {
+                    candidate.word.lowercase(Locale.ROOT)
+                },
+                comment = "",
+                spaceBetweenComment = false
+            )
+        }.toTypedArray()
+        updateDisplayedCandidates(words, words.size)
+    }
+
+    fun clearTransientSwipeCandidates() {
+        if (transientSwipeCandidates == null) return
+        transientSwipeCandidates = null
+        transientSwipeCandidateSelect = null
+        updateDisplayedCandidates(fcitxCandidates, fcitxCandidateTotal)
+    }
+
     override fun onCandidateUpdate(data: FcitxEvent.CandidateListEvent.Data) {
-        val candidates = data.candidates
-        val total = data.total
+        fcitxCandidates = data.candidates
+        fcitxCandidateTotal = data.total
+        if (transientSwipeCandidates != null) return
+
+        updateDisplayedCandidates(data.candidates, data.total)
+    }
+
+    private fun updateDisplayedCandidates(candidates: Array<CandidateWord>, total: Int) {
         val maxSpanCount = maxSpanCountPref.getValue()
         when (fillStyle) {
             NeverFillWidth -> {

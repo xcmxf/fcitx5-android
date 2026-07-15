@@ -46,10 +46,29 @@ data class SwipeCandidate(
     val score: Float
 )
 
+enum class SwipeDecoderState {
+    Ready,
+    MissingPlugin,
+    ApiMismatch,
+    NotReady,
+    Error
+}
+
+data class SwipeDecoderStatus(
+    val state: SwipeDecoderState,
+    val message: String? = null
+) {
+    companion object {
+        val Ready = SwipeDecoderStatus(SwipeDecoderState.Ready)
+    }
+}
+
 interface SwipeTypingDecoder : AutoCloseable {
     fun warmUp() {
         // Optional: implementations may connect to an external decoder here.
     }
+
+    fun status(): SwipeDecoderStatus = SwipeDecoderStatus.Ready
 
     fun recognize(request: SwipeRecognitionRequest, topK: Int = 4): List<SwipeCandidate>
 

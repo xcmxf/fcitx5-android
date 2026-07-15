@@ -16,6 +16,7 @@ import androidx.annotation.DrawableRes
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.children
 import androidx.core.view.updateLayoutParams
+import org.fcitx.fcitx5.android.R
 import org.fcitx.fcitx5.android.core.FcitxKeyMapping
 import org.fcitx.fcitx5.android.core.InputMethodEntry
 import org.fcitx.fcitx5.android.core.KeyStates
@@ -31,11 +32,13 @@ import org.fcitx.fcitx5.android.input.popup.PopupActionListener
 import org.fcitx.fcitx5.android.input.swipe.SwipeKey
 import org.fcitx.fcitx5.android.input.swipe.SwipeLayout
 import org.fcitx.fcitx5.android.input.swipe.SwipePoint
+import org.fcitx.fcitx5.android.input.swipe.SwipeDecoderState
 import org.fcitx.fcitx5.android.input.swipe.SwipeRecognitionRequest
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoder
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoders
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingMode
 import org.fcitx.fcitx5.android.utils.alpha
+import org.fcitx.fcitx5.android.utils.toast
 import splitties.dimensions.dp
 import splitties.views.dsl.constraintlayout.above
 import splitties.views.dsl.constraintlayout.below
@@ -51,6 +54,7 @@ import splitties.views.dsl.constraintlayout.rightToLeftOf
 import splitties.views.dsl.constraintlayout.topOfParent
 import splitties.views.dsl.core.add
 import timber.log.Timber
+import java.util.Locale
 import kotlin.math.absoluteValue
 import kotlin.math.max
 import kotlin.math.roundToInt
@@ -203,7 +207,7 @@ abstract class BaseKeyboard(
             is KeyDef.Appearance.Image -> ImageKeyView(context, theme, def.appearance)
         }.apply {
             if (def is AlphabetKey) {
-                swipeKeyLabels[this] = def.character.lowercase()
+                swipeKeyLabels[this] = def.character.lowercase(Locale.ROOT)
             }
             soundEffect = when (def) {
                 is SpaceKey -> InputFeedbacks.SoundEffect.SpaceBar
@@ -692,7 +696,7 @@ abstract class BaseKeyboard(
 
     private fun appendSwipeLetter(label: String) {
         if (label.length != 1 || !label[0].isLetter()) return
-        val normalized = label.lowercase()
+        val normalized = label.lowercase(Locale.ROOT)
         if (swipeTrace.isEmpty() || swipeTrace.last().toString() != normalized) {
             swipeTrace.append(normalized)
         }
@@ -706,17 +710,37 @@ abstract class BaseKeyboard(
             tracedLetters = swipeTrace.toString()
         )
         val bridgeToFcitx = SwipeTypingMode.usePinyinBridge(currentInputMethod)
-        val candidate = runCatching {
-            getSwipeDecoder(bridgeToFcitx).recognize(request).firstOrNull()
+        val decoder = getSwipeDecoder(bridgeToFcitx)
+        val candidates = runCatching {
+            decoder.recognize(request)
         }.onFailure {
             Timber.w(it, "Swipe typing failed")
-        }.getOrNull() ?: return
-        val word = candidate.word
-        if (word.isBlank()) return
-        onAction(
-            if (bridgeToFcitx) KeyAction.FcitxKeySequenceAction(word)
-            else KeyAction.CommitAction(word.lowercase())
-        )
+        }.getOrNull().orEmpty()
+        if (candidates.isEmpty()) {
+            showSwipeStatus(decoder)
+            return
+        }
+        val action = swipeCandidatesToKeyAction(candidates, bridgeToFcitx) ?: run {
+            showSwipeStatus(decoder)
+            return
+        }
+        onAction(action)
+    }
+
+    private fun showSwipeStatus(decoder: SwipeTypingDecoder) {
+        val status = decoder.status()
+        val message = when (status.state) {
+            SwipeDecoderState.Ready -> context.getString(R.string.swipe_no_candidates)
+            SwipeDecoderState.MissingPlugin ->
+                context.getString(R.string.swipe_decoder_plugin_missing)
+            SwipeDecoderState.ApiMismatch ->
+                context.getString(R.string.swipe_decoder_plugin_api_mismatch)
+            SwipeDecoderState.NotReady ->
+                status.message ?: context.getString(R.string.swipe_decoder_plugin_not_ready)
+            SwipeDecoderState.Error ->
+                status.message ?: context.getString(R.string.swipe_decoder_plugin_error)
+        }
+        context.toast(message)
     }
 
     private fun getSwipeDecoder(bridgeToFcitx: Boolean): SwipeTypingDecoder {

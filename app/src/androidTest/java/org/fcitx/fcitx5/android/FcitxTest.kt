@@ -14,6 +14,9 @@ import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.fcitx.fcitx5.android.core.CapabilityFlags
+import org.fcitx.fcitx5.android.core.CandidateWord
 import org.fcitx.fcitx5.android.core.Fcitx
 import org.fcitx.fcitx5.android.core.FcitxEvent
 import org.fcitx.fcitx5.android.core.RawConfig
@@ -63,6 +66,13 @@ class FcitxTest {
             }
         }
 
+        private suspend fun activateTestInputContext() {
+            val context = InstrumentationRegistry.getInstrumentation().targetContext
+            fcitx.activate(context.applicationInfo.uid, context.packageName)
+            fcitx.setCapFlags(CapabilityFlags.DefaultFlags)
+            fcitx.focus(true)
+        }
+
         @AfterClass
         @JvmStatic
         fun cleanup() {
@@ -74,6 +84,19 @@ class FcitxTest {
                 fcitx.sendKey(c)
                 delay(50)
             }
+        }
+
+        private suspend fun waitForCandidates(
+            timeoutMs: Long = 5000L,
+            predicate: (Array<CandidateWord>) -> Boolean
+        ): Array<CandidateWord> = withTimeout(timeoutMs) {
+            while (true) {
+                val candidates = fcitx.getCandidates(0, 10)
+                if (predicate(candidates)) return@withTimeout candidates
+                delay(50)
+            }
+            @Suppress("UNREACHABLE_CODE")
+            emptyArray()
         }
 
         private suspend inline fun <reified T : FcitxEvent<*>> receiveFirst(): T? =
@@ -125,6 +148,27 @@ class FcitxTest {
         val commitString = receiveFirstCommitString()?.data
         Timber.i("commitString is $commitString")
         Assert.assertEquals(expected, commitString)
+        fcitx.reset()
+    }
+
+    @Test
+    fun testSwipePinyinBridgeCandidates(): Unit = runBlocking {
+        fcitx.reset()
+        fcitx.setEnabledIme(arrayOf("pinyin"))
+        activateTestInputContext()
+        fcitx.activateIme("pinyin")
+        sendString("shifoushi")
+
+        val candidates = waitForCandidates { list ->
+            list.any { it.text.contains("是") || it.text.contains("否") }
+        }
+
+        Timber.i(
+            "swipe pinyin bridge candidates are ${candidates.joinToString()}, " +
+                "currentIme=${fcitx.currentIme()}, preedit=${fcitx.inputPanelCached.preedit}"
+        )
+        Assert.assertTrue(candidates.none { it.text == "shifoushi" })
+        Assert.assertTrue(candidates.any { it.text.contains("是") || it.text.contains("否") })
         fcitx.reset()
     }
 

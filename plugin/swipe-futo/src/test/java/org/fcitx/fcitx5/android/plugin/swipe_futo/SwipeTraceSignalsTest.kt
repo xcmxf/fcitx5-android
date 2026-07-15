@@ -74,4 +74,13 @@ class SwipeTraceSignalsTest {
         assertTrue(!PinyinSyllableScorer.isStrongTraceCandidate("shifuosi"))
         assertTrue(!PinyinSyllableScorer.isStrongTraceCandidate("fuo"))
     }
+
+    @Test
+    fun pinyinSwipeRepairsRecoverCommonDroppedGlideLetters() {
+        assertTrue(PinyinSyllableScorer.swipeRepairCandidates("shifosi").contains("shifoushi"))
+        assertTrue(PinyinSyllableScorer.swipeRepairCandidates("zongguo").contains("zhongguo"))
+        assertTrue(PinyinSyllableScorer.swipeRepairCandidates("suoshi").contains("shuoshi"))
+        assertTrue(PinyinSyllableScorer.swipeRepairCandidates("cuo").contains("chuo"))
+        assertTrue(PinyinSyllableScorer.swipeRepairCandidates("nihao").isEmpty())
+    }
 }

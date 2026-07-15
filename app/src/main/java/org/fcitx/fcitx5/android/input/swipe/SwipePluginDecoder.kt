@@ -34,27 +34,62 @@ class SwipePluginDecoder(
 ) : SwipeTypingDecoder {
 
     private val connection = SwipeDecoderPluginConnection(context.applicationContext)
+    @Volatile
+    private var lastStatus = SwipeDecoderStatus(SwipeDecoderState.NotReady)
 
     override fun warmUp() {
-        connection.getOrConnect()?.let { service ->
-            runCatching {
-                service.warmUp(pinyinMode)
-            }.onFailure {
-                Timber.w(it, "Swipe decoder plugin warm-up failed")
-                connection.disconnect()
-            }
+        val service = connection.getOrConnect() ?: run {
+            lastStatus = SwipeDecoderStatus(SwipeDecoderState.MissingPlugin)
+            return
+        }
+        runCatching {
+            service.warmUp(pinyinMode)
+        }.onSuccess {
+            lastStatus = SwipeDecoderStatus.Ready
+        }.onFailure {
+            Timber.w(it, "Swipe decoder plugin warm-up failed")
+            lastStatus = SwipeDecoderStatus(SwipeDecoderState.Error, it.message)
+            connection.disconnect()
         }
     }
 
+    override fun status(): SwipeDecoderStatus = lastStatus
+
     override fun recognize(request: SwipeRecognitionRequest, topK: Int): List<SwipeCandidate> {
-        val service = connection.getOrConnect(RECOGNITION_BIND_TIMEOUT_MS) ?: return emptyList()
-        val ready = runCatching {
-            service.getApiVersion() == SwipePluginContract.API_VERSION && service.isReady(pinyinMode)
+        val requestedTopK = topK.coerceIn(MIN_TOP_K, MAX_TOP_K)
+        val service = connection.getOrConnect(RECOGNITION_BIND_TIMEOUT_MS) ?: run {
+            lastStatus = SwipeDecoderStatus(SwipeDecoderState.MissingPlugin)
+            return emptyList()
+        }
+        val apiVersion = runCatching {
+            service.getApiVersion()
+        }.onFailure {
+            Timber.w(it, "Swipe decoder plugin API check failed")
+            lastStatus = SwipeDecoderStatus(SwipeDecoderState.Error, it.message)
+            connection.disconnect()
+        }.getOrNull() ?: return emptyList()
+        if (apiVersion != SwipePluginContract.API_VERSION) {
+            lastStatus = SwipeDecoderStatus(
+                SwipeDecoderState.ApiMismatch,
+                "plugin=$apiVersion, app=${SwipePluginContract.API_VERSION}"
+            )
+            connection.disconnect()
+            return emptyList()
+        }
+
+        val readyResult = runCatching {
+            service.isReady(pinyinMode)
         }.onFailure {
             Timber.w(it, "Swipe decoder plugin readiness check failed")
+            lastStatus = SwipeDecoderStatus(SwipeDecoderState.Error, it.message)
             connection.disconnect()
-        }.getOrDefault(false)
-        if (!ready) return emptyList()
+        }
+        if (readyResult.isFailure) return emptyList()
+        if (!readyResult.getOrThrow()) {
+            val status = runCatching { service.getStatus() }.getOrNull()
+            lastStatus = SwipeDecoderStatus(SwipeDecoderState.NotReady, status)
+            return emptyList()
+        }
 
         val points = request.points
         val words = runCatching {
@@ -67,18 +102,20 @@ class SwipePluginDecoder(
                 request.layout.centerX,
                 request.layout.centerY,
                 pinyinMode,
-                topK
+                requestedTopK
             )
         }.onFailure {
             Timber.w(it, "Swipe decoder plugin recognition failed")
+            lastStatus = SwipeDecoderStatus(SwipeDecoderState.Error, it.message)
             connection.disconnect()
         }.getOrNull() ?: return emptyList()
 
+        lastStatus = SwipeDecoderStatus.Ready
         return words.asSequence()
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .distinct()
-            .take(topK)
+            .take(requestedTopK)
             .mapIndexed { index, word -> SwipeCandidate(word, 1f - index * 0.01f) }
             .toList()
     }
@@ -273,6 +310,8 @@ private class SwipeDecoderPluginConnection(
 
 private const val MISSING_PLUGIN_CHECK_INTERVAL_MS = 2_000L
 private const val RECOGNITION_BIND_TIMEOUT_MS = 250L
+private const val MIN_TOP_K = 1
+private const val MAX_TOP_K = 8
 
 object SwipeTypingDecoders {
     fun create(context: Context, pinyinMode: Boolean): SwipeTypingDecoder =

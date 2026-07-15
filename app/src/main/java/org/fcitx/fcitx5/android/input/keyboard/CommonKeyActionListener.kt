@@ -9,6 +9,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import org.fcitx.fcitx5.android.core.FcitxAPI
+import org.fcitx.fcitx5.android.core.FcitxKeyMapping
 import org.fcitx.fcitx5.android.daemon.launchOnReady
 import org.fcitx.fcitx5.android.data.prefs.AppPrefs
 import org.fcitx.fcitx5.android.input.broadcast.PreeditEmptyStateComponent
@@ -31,9 +32,11 @@ import org.fcitx.fcitx5.android.input.keyboard.KeyAction.PickerSwitchAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction.QuickPhraseAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction.ShowInputMethodPickerAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction.SpaceLongPressAction
+import org.fcitx.fcitx5.android.input.keyboard.KeyAction.SwipeCandidatesAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction.SymAction
 import org.fcitx.fcitx5.android.input.keyboard.KeyAction.UnicodeAction
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
+import org.fcitx.fcitx5.android.input.swipe.SwipeCandidate
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.switchToNextIME
 import org.mechdancer.dependency.Dependent
@@ -64,6 +67,11 @@ class CommonKeyActionListener :
     private val langSwitchKeyBehavior by kbdPrefs.langSwitchKeyBehavior
 
     private var backspaceSwipeState = Stopped
+    // The epoch prevents a queued swipe sequence from resurrecting delete state
+    // after a newer keyboard action has already invalidated it.
+    private val swipeSequenceStateLock = Any()
+    private var swipeSequenceEpoch = 0L
+    private var pendingSwipeSequenceDeleteLength = 0
 
     // there should be a new fcitx API for this
     private suspend fun FcitxAPI.commitAndReset() {
@@ -88,23 +96,127 @@ class CommonKeyActionListener :
         }
     }
 
+    private fun clearPendingSwipeSequenceDelete() {
+        synchronized(swipeSequenceStateLock) {
+            pendingSwipeSequenceDeleteLength = 0
+        }
+    }
+
+    private fun invalidatePendingSwipeSequence() {
+        synchronized(swipeSequenceStateLock) {
+            swipeSequenceEpoch++
+            pendingSwipeSequenceDeleteLength = 0
+        }
+    }
+
+    private fun currentSwipeSequenceEpoch(): Long = synchronized(swipeSequenceStateLock) {
+        swipeSequenceEpoch
+    }
+
+    private fun setPendingSwipeSequenceDeleteLength(epoch: Long, length: Int) {
+        synchronized(swipeSequenceStateLock) {
+            if (swipeSequenceEpoch == epoch) {
+                pendingSwipeSequenceDeleteLength = length
+            }
+        }
+    }
+
+    private fun SymAction.isBackspace(): Boolean =
+        sym.sym == FcitxKeyMapping.FcitxKey_BackSpace
+
+    private suspend fun FcitxAPI.sendKeySequence(
+        action: FcitxKeySequenceAction,
+        epoch: Long
+    ) {
+        action.text.forEach {
+            sendKey(it)
+        }
+        val deleteLength = if (action.deleteAsUnit) {
+            action.text.length
+        } else {
+            0
+        }
+        setPendingSwipeSequenceDeleteLength(epoch, deleteLength)
+    }
+
+    private suspend fun FcitxAPI.deletePendingSwipeSequence(): Boolean {
+        val count = synchronized(swipeSequenceStateLock) {
+            pendingSwipeSequenceDeleteLength
+        }
+        if (count <= 0) return false
+
+        if (clientPreeditCached.isEmpty() && inputPanelCached.preedit.isEmpty()) {
+            clearPendingSwipeSequenceDelete()
+            return false
+        }
+
+        repeat(count) {
+            sendKey(FcitxKeyMapping.FcitxKey_BackSpace)
+        }
+        clearPendingSwipeSequenceDelete()
+        return true
+    }
+
+    private fun submitSwipeCandidate(candidate: SwipeCandidate, bridgeToFcitx: Boolean) {
+        when (val action = swipeCandidateToKeyAction(candidate, bridgeToFcitx)) {
+            is FcitxKeySequenceAction -> {
+                val epoch = currentSwipeSequenceEpoch()
+                service.postFcitxJob { sendKeySequence(action, epoch) }
+            }
+            is CommitAction -> {
+                invalidatePendingSwipeSequence()
+                service.postFcitxJob {
+                    clearPendingSwipeSequenceDelete()
+                    commitAndReset()
+                    service.lifecycleScope.launch { service.commitText(action.text) }
+                }
+            }
+            else -> {}
+        }
+    }
+
     val listener by lazy {
         KeyActionListener { action, _ ->
+            if (action !is SwipeCandidatesAction) {
+                horizontalCandidate.clearTransientSwipeCandidates()
+            }
+            val sequenceEpoch = when (action) {
+                is FcitxKeySequenceAction -> currentSwipeSequenceEpoch()
+                is SymAction -> if (action.isBackspace()) {
+                    null
+                } else {
+                    invalidatePendingSwipeSequence()
+                    null
+                }
+                else -> {
+                    invalidatePendingSwipeSequence()
+                    null
+                }
+            }
             when (action) {
                 is FcitxKeyAction -> service.postFcitxJob {
                     sendKey(action.act, action.states.states, action.code)
                 }
                 is FcitxKeySequenceAction -> service.postFcitxJob {
-                    action.text.forEach {
-                        sendKey(it)
-                    }
+                    sendKeySequence(action, checkNotNull(sequenceEpoch))
                 }
                 is SymAction -> service.postFcitxJob {
-                    sendKey(action.sym, action.states)
+                    if (!action.isBackspace() || !deletePendingSwipeSequence()) {
+                        sendKey(action.sym, action.states)
+                    }
                 }
                 is CommitAction -> service.postFcitxJob {
+                    clearPendingSwipeSequenceDelete()
                     commitAndReset()
                     service.lifecycleScope.launch { service.commitText(action.text) }
+                }
+                is SwipeCandidatesAction -> {
+                    horizontalCandidate.showTransientSwipeCandidates(
+                        action.candidates,
+                        action.bridgeToFcitx
+                    ) { candidate ->
+                        submitSwipeCandidate(candidate, action.bridgeToFcitx)
+                    }
                 }
                 is QuickPhraseAction -> service.postFcitxJob {
                     commitAndReset()

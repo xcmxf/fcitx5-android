@@ -29,6 +29,69 @@ internal object PinyinSyllableScorer {
             score(normalized) >= STRONG_TRACE_CANDIDATE_THRESHOLD
     }
 
+    fun swipeRepairCandidates(candidate: String): List<String> {
+        val normalized = normalizeCandidate(candidate)
+        if (normalized.length !in MIN_TRACE_CANDIDATE_LENGTH..MAX_REPAIR_CANDIDATE_LENGTH) {
+            return emptyList()
+        }
+
+        val repairs = linkedSetOf<String>()
+        collectSwipeRepairs(
+            input = normalized,
+            startIndex = 0,
+            current = StringBuilder(normalized.length + MAX_REPAIR_DEPTH),
+            repairCount = 0,
+            output = repairs
+        )
+        return repairs.toList()
+    }
+
+    private fun collectSwipeRepairs(
+        input: String,
+        startIndex: Int,
+        current: StringBuilder,
+        repairCount: Int,
+        output: MutableSet<String>
+    ) {
+        if (output.size >= MAX_REPAIR_CANDIDATES || repairCount > MAX_REPAIR_DEPTH) {
+            return
+        }
+        if (startIndex >= input.length) {
+            current.toString()
+                .takeIf { it != input && isStrongTraceCandidate(it) }
+                ?.let(output::add)
+            return
+        }
+
+        REPAIR_RULES.forEach { rule ->
+            if (
+                repairCount < MAX_REPAIR_DEPTH &&
+                input.startsWith(rule.from, startIndex)
+            ) {
+                val oldLength = current.length
+                current.append(rule.to)
+                collectSwipeRepairs(
+                    input = input,
+                    startIndex = startIndex + rule.from.length,
+                    current = current,
+                    repairCount = repairCount + 1,
+                    output = output
+                )
+                current.setLength(oldLength)
+            }
+        }
+
+        current.append(input[startIndex])
+        collectSwipeRepairs(
+            input = input,
+            startIndex = startIndex + 1,
+            current = current,
+            repairCount = repairCount,
+            output = output
+        )
+        current.setLength(current.length - 1)
+    }
+
     private fun bestSegmentation(input: String): SegmentationScore {
         val best = Array(input.length + 1) { SegmentationScore() }
         for (index in input.indices) {
@@ -80,8 +143,33 @@ internal object PinyinSyllableScorer {
     private const val MAX_SYLLABLE_LENGTH = 6
     private const val MIN_TRACE_CANDIDATE_LENGTH = 2
     private const val STRONG_TRACE_CANDIDATE_THRESHOLD = 0.93f
+    private const val MAX_REPAIR_CANDIDATE_LENGTH = 24
+    private const val MAX_REPAIR_CANDIDATES = 16
+    private const val MAX_REPAIR_DEPTH = 3
 
     private val WEAK_STANDALONE_SYLLABLES = setOf("a", "e", "o")
+    private data class RepairRule(val from: String, val to: String)
+
+    private val REPAIR_RULES = listOf(
+        RepairRule("fo", "fou"),
+        RepairRule("zong", "zhong"),
+        RepairRule("zou", "zhou"),
+        RepairRule("zuo", "zhuo"),
+        RepairRule("zui", "zhui"),
+        RepairRule("zun", "zhun"),
+        RepairRule("cong", "chong"),
+        RepairRule("cou", "chou"),
+        RepairRule("cuo", "chuo"),
+        RepairRule("cui", "chui"),
+        RepairRule("cun", "chun"),
+        RepairRule("sou", "shou"),
+        RepairRule("suo", "shuo"),
+        RepairRule("sui", "shui"),
+        RepairRule("sun", "shun"),
+        RepairRule("si", "shi"),
+        RepairRule("ci", "chi"),
+        RepairRule("zi", "zhi")
+    )
 
     private val VALID_SYLLABLES = """
         a ai an ang ao e ei en eng er o ou

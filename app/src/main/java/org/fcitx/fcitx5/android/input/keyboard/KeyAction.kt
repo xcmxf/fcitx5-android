@@ -8,6 +8,7 @@ import org.fcitx.fcitx5.android.core.KeyStates
 import org.fcitx.fcitx5.android.core.KeySym
 import org.fcitx.fcitx5.android.core.ScancodeMapping
 import org.fcitx.fcitx5.android.input.picker.PickerWindow
+import org.fcitx.fcitx5.android.input.swipe.SwipeCandidate
 
 sealed class KeyAction {
 
@@ -17,11 +18,19 @@ sealed class KeyAction {
         val states: KeyStates = KeyStates.Virtual
     ) : KeyAction()
 
-    data class FcitxKeySequenceAction(val text: String) : KeyAction()
+    data class FcitxKeySequenceAction(
+        val text: String,
+        val deleteAsUnit: Boolean = false
+    ) : KeyAction()
 
     data class SymAction(val sym: KeySym, val states: KeyStates = KeyStates.Virtual) : KeyAction()
 
     data class CommitAction(val text: String) : KeyAction()
+
+    data class SwipeCandidatesAction(
+        val candidates: List<SwipeCandidate>,
+        val bridgeToFcitx: Boolean
+    ) : KeyAction()
 
     data class CapsAction(val lock: Boolean) : KeyAction()
 
