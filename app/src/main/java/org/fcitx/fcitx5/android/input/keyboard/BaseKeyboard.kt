@@ -462,6 +462,9 @@ abstract class BaseKeyboard(
     }
 
     override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        // Once this ViewGroup owns a swipe, every later event must reach onTouchEvent().
+        // Re-evaluating ACTION_UP here would reset the tracking state before finishSwipe().
+        if (swipeIntercepted) return true
         if (handleSwipeIntercept(ev)) return true
         // intercept ACTION_DOWN and all following events will go to parent's onTouchEvent
         return if (vivoKeypressWorkaround && ev.actionMasked == MotionEvent.ACTION_DOWN) true
