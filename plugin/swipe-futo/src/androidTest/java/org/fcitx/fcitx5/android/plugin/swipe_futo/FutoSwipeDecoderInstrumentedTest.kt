@@ -108,6 +108,39 @@ class FutoSwipeDecoderInstrumentedTest {
     }
 
     @Test
+    fun ranksConstrainedPinyinInitialRepairsFirst() {
+        val samples = listOf(
+            PinyinSwipeSample(
+                expected = "zhongguo",
+                geometricWord = "zhongguo",
+                tracedLetters = "zongguo"
+            ),
+            PinyinSwipeSample(
+                expected = "chongxin",
+                geometricWord = "chongxin",
+                tracedLetters = "congxin"
+            ),
+            PinyinSwipeSample(
+                expected = "shuoshi",
+                geometricWord = "shuoshi",
+                tracedLetters = "suoshi"
+            )
+        )
+
+        samples.forEach { sample ->
+            val result = decodePinyin(
+                geometricWord = sample.geometricWord,
+                tracedLetters = sample.tracedLetters
+            )
+
+            assertTrue(
+                "Expected ${sample.expected} as first result for ${sample.tracedLetters}, got $result",
+                result.firstOrNull() == sample.expected
+            )
+        }
+    }
+
+    @Test
     fun recognizesCommonEnglishFromSyntheticQwertySwipe() {
         decoder.warmUp(pinyinMode = false)
         listOf("hello", "world").forEach { expected ->
