@@ -1,9 +1,9 @@
 # FUTO Swipe 插件后续适配计划
 
-状态：P1 实施中
+状态：P2 进行中（P1 代码改造已完成，等待真实轨迹语料）
 目标分支：`swipe-typing-20260618`
-基线提交：`7437fed6 Complete swipe typing pipeline`
-计划日期：2026-07-23
+基线提交：`5402b4b9 Require pinyin baseline top-one results`
+计划日期：2026-07-24
 
 ## 1. 结论先行
 
@@ -44,16 +44,14 @@
 - 缺少插件、协议不匹配、插件未就绪和解码错误已有基础状态提示。
 - 英文滑行已可用。
 - 拼音已有音节合法性评分、轨迹重排和有限修复逻辑。
-- 已有 `nihao`、`zhongguo`、`shifou`、`shifoushi` 等理想轨迹的插件 instrumentation 测试。
+- 11 条核心拼音理想轨迹（包括 `nihao`、`zhongguo`、`shifou`、`shifoushi`）均以插件 Top1 作为 instrumentation 回归门槛；英文继续保留独立 smoke 回归。
 - 用户参考的 `shi-fuo-si` 已有黄金回放：受约束的 `fuo -> fou`、`si -> shi` 联合修复会把 `shifoushi` 排为 Top1；插件和主程序 Binder 测试均已覆盖。
-- 浮动键盘移动后会重新计算键位与窗口坐标。
-- swipe 分支里的 nightly 定义已具备同时构建、签名主 APK 和 FUTO 插件 APK 的逻辑。
+- 已修正父键盘接管 swipe 后的事件收尾：后续 `ACTION_UP` 会交给 `onTouchEvent()` 完成解码，而不会提前重置手势状态。
+- `shifoushi` 已经过 Fcitx 拼音引擎 E2E 定向测试，能产生中文候选；这证明拼音桥，不代表真实手势准确率。
 - FUTO AAR、模型、英文词表与 Fcitx 拼音词典均使用固定 revision 和校验值。
 
 当前主要缺口：
 
-- `swipe-typing-20260618` 尚未包含浮动键盘分支的全部最新历史；两条分支仍然分叉。
-- 本地 swipe 分支比远端多提交 `7437fed6`，执行新适配前应先形成可恢复的远端基线。
 - 当前 GitHub 只启用了 `Build APK`、`Nix`、`Publish` 三条 workflow；Nightly/Sync 不在默认分支，定时发布实际没有运行。
 - 当前线上 `nightly` 只有主程序的 arm64-v8a、x86_64 两个 APK，没有 FUTO 插件资产。
 - `build-apk.yml` 的 push 触发仍只覆盖 floating 分支，推送 swipe 分支不会自动构建。
@@ -62,10 +60,8 @@
 - 现有拼音测试主要是“键中心连线”，不能代表真实手指的过冲、漏键、邻键、采样率和速度变化。
 - 拼音桥当前只把插件 Top1 送进 Fcitx，Top2～Top4 命中并不能改善实际中文输入。
 - 输入法路由已限定为英文和 Fcitx 拼音；其余输入法只保持禁用 swipe，不纳入适配或回归语料。
-- `BaseKeyboard.finishSwipe()` 目前同步进入 Binder 识别路径，冷绑定或模型初始化有阻塞键盘主线程的风险。
-- 插件的 warm-up 是异步的，但主程序会过早把状态标记为 Ready；`isReady()` 还可能同步创建模型会话。
-- 协议版本常量在主程序和插件各维护一份，状态和错误仍是字符串，后续独立发布容易漂移。
-- 当前没有真实 Binder 生命周期、插件进程被杀、插件升级、真实 MotionEvent 和浮动键盘的完整自动化。
+- 当前 API 36 远程模拟器将 IME 显示为不可触摸的 `IME-screenshot-surface`；`adb input` 不会进入 Fcitx 键盘，不能用于采集或验收真实 `MotionEvent`。需要可触摸模拟器或真机来补 P2 语料。
+- 真实 `MotionEvent` 语料、插件升级场景和性能门禁尚未完成；floating E2E 仅属于获授权后的独立集成分支，不是本分支缺口。
 - 当前 trie 每个节点固定保存 26 个子指针，英文和拼音 session 同时常驻时有明显 PSS 风险，尚未建立内存门禁。
 - app 的整套 connected test 存在等待无超时的问题，不能直接作为 swipe 发布门禁。
 - 当前没有对候选 Swipe 服务提供者执行可信证书校验；未来若独立签名，必须先建立主程序的证书信任策略。
@@ -109,7 +105,7 @@
 
 目标：插件缺失、冷启动、升级或进程死亡时都不会让第一次 swipe 静默失败。
 
-本轮已完成（2026-07-23）：
+本轮已完成（截至 2026-07-24）：
 
 - 统一 `English / Pinyin / Unsupported` profile；未适配输入法不再误走拼音桥。
 - 手势请求在发送前校验有限数值、时间单调性和布局长度，并重采样为至多 96 个点。
@@ -117,6 +113,8 @@
 - 插件会话改为显式 lazy warm-up；`isReady()` 不再触发模型初始化，状态可区分 Binding、Warming、Ready 和错误。
 - Binder API v2 已收敛到 `lib/common` 的单一 `SwipeDecoderProtocol`；绑定前会验证预期插件包名、服务权限与同签名证书。
 - API 36 x86_64 模拟器已验证：主 APK 与 x86_64 FUTO 插件 APK 可共同安装、系统可发现服务；冷启动识别与 `am force-stop` 插件后的恢复均成功。
+- 插件 instrumentation 的 11 条核心拼音理想轨迹和用户 `shi-fuo-si` 黄金回放均为 Top1；Fcitx 拼音桥 E2E 能给出中文候选。
+- `BaseKeyboard` 接管 swipe 后保持事件所有权直到 `ACTION_UP`，以完成异步识别请求。
 
 任务：
 
@@ -155,18 +153,17 @@
 - 增加仅 debug 可用的本地轨迹记录器，导出 JSON fixture：
   - 归一化 `x/y/t`
   - 当前键位中心与键盘尺寸
-  - docked/floating、方向和缩放比例
+  - 当前 docked 键盘的方向与键盘尺寸（floating 数据仅在获单独授权的集成分支记录）
   - 观测到的键序列
   - 插件候选及顺序
-  - Fcitx 最终候选
 - 不记录目标应用包名、输入框原文、账号或其他隐私内容。
 - 当前已完成的最小闭环：debug 开发者页面有默认关闭的“记录滑行轨迹”开关；开启后仅写入 app 专属外部目录 `swipe-traces/`，记录归一化轨迹、键盘尺寸/键位中心、方向、观测键序列和插件候选。codec 与模拟器文件写入均有回归测试。
 - 已加入首个 JSON 回放：`user_reference_shi_fuo_si.json`，在插件 instrumentation 中验证 `shi-fuo-si -> shifoushi` Top1。该 fixture 目前按用户截图中的键序列构造，尚不是从真机 MotionEvent 直接导出。
-- 尚未记录 Fcitx 最终汉字候选；该项必须在 P5 的输入框 E2E 钩子中补齐，不能用插件候选冒充。
+- 尚未记录 Fcitx 最终汉字候选；该项必须在输入框 E2E 钩子中补齐，不能用插件候选冒充。
 - 首批录制至少：
   - 英文 30 个词，每词 3 次。
   - 拼音 30 个短语，每条 3 次。
-  - docked 与 floating 分桶保存。
+  - 仅保存 docked 键盘样本；不为未获授权的 floating 分支采样或建回归。
 - 必须包含：
   - `hello`、`world`、`swipe`、`keyboard`、`android`
   - `nihao`、`xiexie`、`zaijian`、`zhongguo`、`shijie`
@@ -220,36 +217,7 @@
   - 拼音 Top1 至少 80%，Top4 至少 93%。
   - `shifoushi` 进入 Fcitx 后，前三个中文候选中出现包含“是/否”的合理结果。
 
-### P4：在明确集成后完善 floating keyboard 共存
-
-依赖：仅在用户明确授权合并或创建集成分支后执行。本阶段不属于当前 swipe 分支适配。
-
-目标：键盘移动、缩放、旋转或模式切换后，轨迹与实际按键始终一致。
-
-任务：
-
-- 在每次手势开始时冻结本次键盘布局、窗口位置和尺寸快照。
-- 浮动键盘开始移动、缩放、停靠、旋转或重建时，立即取消进行中的 swipe。
-- 手势结束前若布局 generation 已变化，丢弃旧请求，防止旧坐标提交错误单词。
-- 验证轨迹绘制、命中测试和导出的 key center 使用同一坐标系。
-- 覆盖 floating 默认位置、左上、右下、最小宽度、缩放后立即 swipe、移动后立即 swipe、dock 与 floating 互转。
-- 保持以下交互互不冲突：
-  - 短移动仍是普通点击。
-  - 拖动手柄不产生字母。
-  - 缩放手柄不启动 swipe。
-  - 空格滑动光标与字母区 swipe 分离。
-  - popup、双指、`ACTION_CANCEL` 不产生残留候选。
-  - 连续 swipe 后退格仍按当前设计整段撤销。
-- 轨迹和状态颜色继续从 Monet/现有主题取得。
-
-完成门槛：
-
-- 竖屏、横屏下，docked 与所有 floating 测试位置第一次 swipe 即成功。
-- 移动或缩放后的键位坐标漂移不超过 1 dp。
-- floating 相对 docked 的 Top1 准确率下降不超过 2 个百分点。
-- 手势期间不会误移动浮动键盘，拖动浮动键盘也不会误提交文字。
-
-### P5：补齐自动化、性能和稳定性门禁
+### P4：补齐自动化、性能和稳定性门禁
 
 目标：模拟器可以真正覆盖“手指轨迹 -> 插件 -> Fcitx -> 输入框”的完整链路。
 
@@ -284,7 +252,7 @@
 - 真实轨迹 Top1 至少 85%，Top3 至少 95%。
 - `hello`、`world`、`swipe`、`keyboard`、`android` Top3 为 100%。
 
-### P6：形成可发布的插件交付链
+### P5：形成可发布的插件交付链
 
 目标：插件可以独立更新，但不会与主 APK 发生签名或协议错配。
 
@@ -324,7 +292,7 @@
 | JVM 单测 | trace、拼音修复、模式路由、KeyAction、坐标换算 | 必须 | 必须 |
 | 插件 instrumentation | 核心英文/拼音黄金集 | 必须 | 全量语料 |
 | Binder 集成 | 基础连接、API、两个模式 | 必须 | 生命周期与故障注入 |
-| 主程序 E2E | docked 英文、拼音各 1 组 | 必须 | floating/方向/缩放全矩阵 |
+| 主程序 E2E | docked 英文、拼音各 1 组 | 必须 | docked 的方向矩阵 |
 | 真机回放 | 可选抽查 | 至少 ARM64 smoke | 全量性能与真实轨迹 |
 
 当前整套 `:app:connectedDebugAndroidTest` 不作为 swipe 门禁。应先修复其无超时等待，再逐步纳入。
@@ -337,9 +305,8 @@
 2. `Add real swipe trace fixtures and replay harness`
 3. `Improve pinyin top-one decoding and mode routing`
 4. `Harden swipe plugin release and compatibility checks`
-5. `Only after separate authorization: create an integration branch for floating keyboard swipe E2E`
 
-当前 swipe 分支不得合并、cherry-pick 或 rebase floating keyboard 分支。不要把后续获授权的分支集成、解码调权重、E2E 测试和 release workflow 全塞进一个提交。
+当前 swipe 分支只适配英文 QWERTY 与 Fcitx 拼音 swipe；不得合并、cherry-pick 或 rebase floating keyboard 分支。
 
 ## 7. 最终完成定义
 
@@ -348,7 +315,7 @@
 - 不安装插件时，Fcitx5 for Android 的正常输入完全不受影响。
 - 安装匹配插件后，英文和拼音 swipe 均可在第一次手势使用。
 - 用户参考的 `shi-fuo-si` 风格轨迹能稳定恢复为 `shifoushi`，并得到合理中文候选。
-- docked、floating、移动、缩放、横竖屏切换均通过 E2E。
+- docked 键盘在支持的方向下，英文和拼音 swipe 均通过 E2E。
 - 插件丢失、升级、API 错配、进程被杀和模型加载失败都有可恢复行为。
 - 关键拼音用例以 Top1 作为门禁，英文没有明显回退。
 - app 与插件 APK 的协议、ABI、签名、模型和许可证信息都可验证。
@@ -358,9 +325,7 @@
 
 下一轮实现按以下顺序推进：
 
-1. 固定 swipe 分支基线，不合并 floating。
-2. 修正 warm-up/ready 状态机、后台识别和输入法模式路由。
-3. 增加真实轨迹记录、JSON 回放和英文回归集。
-4. 用真实数据调拼音 Top1，先解决 `shifoushi` 黄金样本。
-5. 在当前分支完成插件生命周期、性能和稳定性验证。
-6. 获得单独授权后，再创建集成分支处理 floating MotionEvent E2E、CI 与发布链。
+1. 在当前 swipe 分支固定基线，不合并 floating。
+2. 采集英文与拼音的真实 docked 轨迹，加入 JSON 回放与回归集。
+3. 用真实数据调拼音 Top1，优先覆盖 `shifoushi` 等易错轨迹。
+4. 完成英文、拼音的插件生命周期、性能和稳定性验证。
