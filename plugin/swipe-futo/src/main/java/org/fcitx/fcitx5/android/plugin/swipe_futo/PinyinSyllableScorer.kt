@@ -30,12 +30,21 @@ internal object PinyinSyllableScorer {
     }
 
     fun swipeRepairCandidates(candidate: String): List<String> {
+        return swipeRepairDepths(candidate).keys.toList()
+    }
+
+    /**
+     * Returns every strong repair together with the number of trace-repair rules it used.
+     * A multi-rule repair represents multiple skipped key transitions in one continuous swipe;
+     * it is not a generic spelling-edit distance.
+     */
+    fun swipeRepairDepths(candidate: String): Map<String, Int> {
         val normalized = normalizeCandidate(candidate)
         if (normalized.length !in MIN_TRACE_CANDIDATE_LENGTH..MAX_REPAIR_CANDIDATE_LENGTH) {
-            return emptyList()
+            return emptyMap()
         }
 
-        val repairs = linkedSetOf<String>()
+        val repairs = linkedMapOf<String, Int>()
         collectSwipeRepairs(
             input = normalized,
             startIndex = 0,
@@ -43,7 +52,7 @@ internal object PinyinSyllableScorer {
             repairCount = 0,
             output = repairs
         )
-        return repairs.toList()
+        return repairs
     }
 
     private fun collectSwipeRepairs(
@@ -51,7 +60,7 @@ internal object PinyinSyllableScorer {
         startIndex: Int,
         current: StringBuilder,
         repairCount: Int,
-        output: MutableSet<String>
+        output: MutableMap<String, Int>
     ) {
         if (output.size >= MAX_REPAIR_CANDIDATES || repairCount > MAX_REPAIR_DEPTH) {
             return
@@ -59,7 +68,9 @@ internal object PinyinSyllableScorer {
         if (startIndex >= input.length) {
             current.toString()
                 .takeIf { it != input && isStrongTraceCandidate(it) }
-                ?.let(output::add)
+                ?.let { repaired ->
+                    output.merge(repaired, repairCount, ::minOf)
+                }
             return
         }
 
@@ -151,6 +162,7 @@ internal object PinyinSyllableScorer {
     private data class RepairRule(val from: String, val to: String)
 
     private val REPAIR_RULES = listOf(
+        RepairRule("fuo", "fou"),
         RepairRule("fo", "fou"),
         RepairRule("zong", "zhong"),
         RepairRule("zou", "zhou"),

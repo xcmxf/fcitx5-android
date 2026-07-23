@@ -78,6 +78,8 @@ class SwipeTraceSignalsTest {
     @Test
     fun pinyinSwipeRepairsRecoverCommonDroppedGlideLetters() {
         assertTrue(PinyinSyllableScorer.swipeRepairCandidates("shifosi").contains("shifoushi"))
+        assertTrue(PinyinSyllableScorer.swipeRepairCandidates("shifuosi").contains("shifoushi"))
+        assertEquals(2, PinyinSyllableScorer.swipeRepairDepths("shifuosi")["shifoushi"])
         assertTrue(PinyinSyllableScorer.swipeRepairCandidates("zongguo").contains("zhongguo"))
         assertTrue(PinyinSyllableScorer.swipeRepairCandidates("suoshi").contains("shuoshi"))
         assertTrue(PinyinSyllableScorer.swipeRepairCandidates("cuo").contains("chuo"))

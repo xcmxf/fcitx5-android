@@ -95,6 +95,19 @@ class FutoSwipeDecoderInstrumentedTest {
     }
 
     @Test
+    fun ranksUserReferenceFuoTraceFirst() {
+        val result = decodePinyin(
+            geometricWord = "shifuosi",
+            tracedLetters = "shifuosi"
+        )
+
+        assertTrue(
+            "Expected shifoushi as the first result for shi-fuo-si, got $result",
+            result.firstOrNull() == "shifoushi"
+        )
+    }
+
+    @Test
     fun recognizesCommonEnglishFromSyntheticQwertySwipe() {
         decoder.warmUp(pinyinMode = false)
         listOf("hello", "world").forEach { expected ->

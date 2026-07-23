@@ -260,6 +260,7 @@ private class FutoSwipeSession(
         if (!traceRescoring || candidates.isEmpty()) return candidates
         val observedPoints = x.indices.map { NormalizedPoint(x[it], y[it]) }
         if (observedPoints.size < 2) return candidates
+        val directRepairDepths = PinyinSyllableScorer.swipeRepairDepths(directTrace)
 
         return candidates
             .map { candidate ->
@@ -275,10 +276,17 @@ private class FutoSwipeSession(
                     inferredTrace = inferredTrace
                 )
                 val syllableScore = PinyinSyllableScorer.score(candidate.word)
+                val directRepairScore = directTraceRepairScore(
+                    directRepairDepth = directRepairDepths[candidate.word],
+                    geometryScore = geometryScore,
+                    traceScore = traceScore,
+                    syllableScore = syllableScore
+                )
                 val totalScore = geometryScore * GEOMETRY_SCORE_WEIGHT +
                     traceScore * TRACE_SCORE_WEIGHT +
                     subsequenceScore * SUBSEQUENCE_SCORE_WEIGHT +
-                    syllableScore * SYLLABLE_SCORE_WEIGHT
+                    syllableScore * SYLLABLE_SCORE_WEIGHT +
+                    directRepairScore
                 CandidateScore(
                     candidate,
                     totalScore,
@@ -297,6 +305,28 @@ private class FutoSwipeSession(
                     .thenBy { it.candidate.rank }
             )
             .map { it.candidate }
+    }
+
+    /**
+     * A direct key trace such as `shi-fuo-si` can preserve the intended syllable boundaries
+     * while skipping transitions for both `fou` and `shi`. Let that combined, constrained
+     * repair outrank a partial repair only when geometry and the original trace still support it.
+     */
+    private fun directTraceRepairScore(
+        directRepairDepth: Int?,
+        geometryScore: Float,
+        traceScore: Float,
+        syllableScore: Float
+    ): Float {
+        if (directRepairDepth == null ||
+            geometryScore < MIN_REPAIR_GEOMETRY_SCORE ||
+            traceScore < MIN_REPAIR_TRACE_SCORE ||
+            syllableScore < MIN_REPAIR_SYLLABLE_SCORE
+        ) {
+            return 0f
+        }
+        return DIRECT_TRACE_REPAIR_BONUS +
+            (directRepairDepth - 1).coerceAtLeast(0) * DIRECT_TRACE_COMPOUND_REPAIR_BONUS
     }
 
     private fun appendStrongTraceCandidates(
@@ -504,5 +534,10 @@ private class FutoSwipeSession(
         const val TRACE_SCORE_WEIGHT = 0.24f
         const val SUBSEQUENCE_SCORE_WEIGHT = 0.08f
         const val SYLLABLE_SCORE_WEIGHT = 0.16f
+        const val MIN_REPAIR_GEOMETRY_SCORE = 0.45f
+        const val MIN_REPAIR_TRACE_SCORE = 0.62f
+        const val MIN_REPAIR_SYLLABLE_SCORE = 0.93f
+        const val DIRECT_TRACE_REPAIR_BONUS = 0.30f
+        const val DIRECT_TRACE_COMPOUND_REPAIR_BONUS = 0.25f
     }
 }

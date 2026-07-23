@@ -36,6 +36,7 @@
 - 英文滑行已可用。
 - 拼音已有音节合法性评分、轨迹重排和有限修复逻辑。
 - 已有 `nihao`、`zhongguo`、`shifou`、`shifoushi` 等理想轨迹的插件 instrumentation 测试。
+- 用户参考的 `shi-fuo-si` 已有黄金回放：受约束的 `fuo -> fou`、`si -> shi` 联合修复会把 `shifoushi` 排为 Top1；插件和主程序 Binder 测试均已覆盖。
 - 浮动键盘移动后会重新计算键位与窗口坐标。
 - swipe 分支里的 nightly 定义已具备同时构建、签名主 APK 和 FUTO 插件 APK 的逻辑。
 - FUTO AAR、模型、英文词表与 Fcitx 拼音词典均使用固定 revision 和校验值。
@@ -51,7 +52,7 @@
 - 插件的 versionName/versionCode 仍继承主程序的根仓版本逻辑，暂时不能真正独立升版。
 - 现有拼音测试主要是“键中心连线”，不能代表真实手指的过冲、漏键、邻键、采样率和速度变化。
 - 拼音桥当前只把插件 Top1 送进 Fcitx，Top2～Top4 命中并不能改善实际中文输入。
-- `SwipeTypingMode` 目前把大多数非英文输入法都按拼音处理，日文、韩文等模式需要明确禁用或单独适配。
+- 输入法路由已限定为英文和 Fcitx 拼音；日文、韩文等未适配输入法保持禁用 swipe。
 - `BaseKeyboard.finishSwipe()` 目前同步进入 Binder 识别路径，冷绑定或模型初始化有阻塞键盘主线程的风险。
 - 插件的 warm-up 是异步的，但主程序会过早把状态标记为 Ready；`isReady()` 还可能同步创建模型会话。
 - 协议版本常量在主程序和插件各维护一份，状态和错误仍是字符串，后续独立发布容易漂移。
@@ -171,6 +172,8 @@
 ### P3：提高拼音 Top1 质量
 
 目标：插件第一候选必须足够可靠，因为主程序当前只把 Top1 交给 Fcitx。
+
+当前进展：`shi-fuo-si -> shifoushi` 已通过插件、Binder 两层 Top1 回归。该样本仍是根据用户提供的键序列构造的回放，不替代 P2 要求的真实 MotionEvent JSON 语料，也不据此宣称整体准确率达标。
 
 任务：
 

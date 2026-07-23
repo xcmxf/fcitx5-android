@@ -38,25 +38,40 @@ class SwipePluginDecoderInstrumentedTest {
         assumeTrue("FUTO Swipe plugin must be installed for this integration test", pluginInstalled())
 
         val request = pinyinSwipeRequest("shifou")
-        assertEquals("shifou", awaitTopCandidate(request, "cold start").word)
+        assertEquals("shifou", awaitTopCandidate(request, "shifou", "cold start").word)
 
         instrumentation.uiAutomation.executeShellCommand("am force-stop $pluginPackage").use { }
 
-        assertEquals("shifou", awaitTopCandidate(request, "plugin force-stop recovery").word)
+        assertEquals(
+            "shifou",
+            awaitTopCandidate(request, "shifou", "plugin force-stop recovery").word
+        )
+    }
+
+    @Test
+    fun ranksUserReferencePinyinRepairThroughPluginBinder() {
+        assumeTrue("FUTO Swipe plugin must be installed for this integration test", pluginInstalled())
+
+        val request = pinyinSwipeRequest("shifuosi")
+        assertEquals(
+            "shifoushi",
+            awaitTopCandidate(request, "shifoushi", "shi-fuo-si repair").word
+        )
     }
 
     private fun awaitTopCandidate(
         request: SwipeRecognitionRequest,
+        expected: String,
         phase: String
     ): SwipeCandidate {
         repeat(MAX_ATTEMPTS) {
             decoder.warmUp()
             decoder.recognize(request, topK = 4).firstOrNull()?.let { candidate ->
-                if (candidate.word == "shifou") return candidate
+                if (candidate.word == expected) return candidate
             }
             Thread.sleep(RETRY_DELAY_MS)
         }
-        fail("FUTO Swipe plugin did not produce shifou during $phase; status=${decoder.status()}")
+        fail("FUTO Swipe plugin did not produce $expected during $phase; status=${decoder.status()}")
         error("unreachable")
     }
 
