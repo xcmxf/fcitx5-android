@@ -118,7 +118,10 @@ enum class SwipeTypingProfile {
 
 object SwipeTypingMode {
     fun profileFor(ime: InputMethodEntry?): SwipeTypingProfile {
-        if (ime == null) return SwipeTypingProfile.Pinyin
+        // A keyboard can be visible briefly before Fcitx reports its active IME. Do not
+        // guess Pinyin in that gap: swipe is only enabled after a supported English or
+        // Fcitx Pinyin profile has been identified explicitly.
+        if (ime == null) return SwipeTypingProfile.Unsupported
 
         val uniqueName = ime.uniqueName.lowercase(Locale.ROOT)
         val languageCode = ime.languageCode.lowercase(Locale.ROOT)

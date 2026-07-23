@@ -107,7 +107,7 @@
 
 本轮已完成（截至 2026-07-24）：
 
-- 统一 `English / Pinyin / Unsupported` profile；未适配输入法不再误走拼音桥。
+- 统一 `English / Pinyin / Unsupported` profile；未适配输入法和尚未确定的 IME 不再误走拼音桥。
 - 手势请求在发送前校验有限数值、时间单调性和布局长度，并重采样为至多 96 个点。
 - 主线程只收集并提交不可变请求；绑定、Binder 调用和解码移至后台单线程，使用 epoch 丢弃取消、IME 切换和 View detach 后的旧结果。
 - 插件会话改为显式 lazy warm-up；`isReady()` 不再触发模型初始化，状态可区分 Binding、Warming、Ready 和错误。

@@ -34,8 +34,9 @@ class SwipeTypingTest {
     }
 
     @Test
-    fun swipeTypingModeDefaultsToPinyinBridge() {
-        assertTrue(SwipeTypingMode.usePinyinBridge(null))
+    fun swipeTypingModeRequiresAnExplicitSupportedIme() {
+        assertEquals(SwipeTypingProfile.Unsupported, SwipeTypingMode.profileFor(null))
+        assertFalse(SwipeTypingMode.usePinyinBridge(null))
         assertTrue(
             SwipeTypingMode.usePinyinBridge(
                 ime(uniqueName = "pinyin", languageCode = "zh_CN", addon = "pinyin")
