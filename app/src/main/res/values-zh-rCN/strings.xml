@@ -87,6 +87,8 @@
     <string name="crash_logs">崩溃日志</string>
     <string name="verbose_log">详细记录日志</string>
     <string name="verbose_log_summary">需要重启</string>
+    <string name="record_swipe_traces">记录滑行轨迹</string>
+    <string name="record_swipe_traces_summary">仅限调试版。仅在本地保存手势坐标、键序列和插件候选；请勿记录敏感输入。</string>
     <string name="removed_x">已移除 %1$s</string>
     <string name="added_x">已添加 %1$s</string>
     <string name="edited_x">已编辑 %1$s</string>

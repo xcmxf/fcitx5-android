@@ -89,6 +89,8 @@
     <string name="crash_logs">Crash logs</string>
     <string name="verbose_log">Verbose logging</string>
     <string name="verbose_log_summary">Requires restart</string>
+    <string name="record_swipe_traces">Record swipe traces</string>
+    <string name="record_swipe_traces_summary">Debug only. Saves gesture coordinates, key sequence, and plugin candidates locally; do not record sensitive input.</string>
     <string name="removed_x">Removed %1$s</string>
     <string name="added_x">Added %1$s</string>
     <string name="edited_x">Edited %1$s</string>

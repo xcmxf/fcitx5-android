@@ -5,6 +5,7 @@
 package org.fcitx.fcitx5.android.plugin.swipe_futo
 
 import androidx.test.platform.app.InstrumentationRegistry
+import org.json.JSONObject
 import org.junit.After
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -12,11 +13,12 @@ import org.junit.Test
 
 class FutoSwipeDecoderInstrumentedTest {
 
+    private val instrumentation = InstrumentationRegistry.getInstrumentation()
     private lateinit var decoder: FutoSwipeDecoder
 
     @Before
     fun setUp() {
-        decoder = FutoSwipeDecoder(InstrumentationRegistry.getInstrumentation().targetContext)
+        decoder = FutoSwipeDecoder(instrumentation.targetContext)
         decoder.warmUp(pinyinMode = true)
     }
 
@@ -96,14 +98,12 @@ class FutoSwipeDecoderInstrumentedTest {
 
     @Test
     fun ranksUserReferenceFuoTraceFirst() {
-        val result = decodePinyin(
-            geometricWord = "shifuosi",
-            tracedLetters = "shifuosi"
-        )
+        val fixture = loadPinyinFixture("swipe-fixtures/user_reference_shi_fuo_si.json")
+        val result = decodePinyinFixture(fixture)
 
         assertTrue(
-            "Expected shifoushi as the first result for shi-fuo-si, got $result",
-            result.firstOrNull() == "shifoushi"
+            "Fixture ${fixture.id} expected ${fixture.expectedTopCandidate}, got $result",
+            result.firstOrNull() == fixture.expectedTopCandidate
         )
     }
 
@@ -154,6 +154,61 @@ class FutoSwipeDecoderInstrumentedTest {
             centerY = layout.centerY,
             pinyinMode = false,
             topK = 4
+        )
+    }
+
+    private fun decodePinyinFixture(fixture: PinyinSwipeFixture): List<String> = decoder.recognize(
+        x = fixture.points.map { it.x }.toFloatArray(),
+        y = fixture.points.map { it.y }.toFloatArray(),
+        t = fixture.points.map { it.t }.toFloatArray(),
+        letters = fixture.letters,
+        tracedLetters = fixture.tracedLetters,
+        centerX = fixture.centerX,
+        centerY = fixture.centerY,
+        pinyinMode = true,
+        topK = 4
+    )
+
+    private fun loadPinyinFixture(assetPath: String): PinyinSwipeFixture {
+        val root = instrumentation.context.assets.open(assetPath).bufferedReader().use { reader ->
+            JSONObject(reader.readText())
+        }
+        check(root.getInt("schemaVersion") == 1) { "Unsupported fixture schema: $assetPath" }
+        check(root.getString("profile") == "Pinyin") { "Fixture is not Pinyin: $assetPath" }
+
+        val keyPositions = linkedMapOf<Char, Point>()
+        val keys = root.getJSONObject("keyboard").getJSONArray("keys")
+        repeat(keys.length()) { index ->
+            val key = keys.getJSONObject(index)
+            val letter = key.getString("letter").single().lowercaseChar()
+            check(letter in 'a'..'z' && letter !in keyPositions) {
+                "Invalid keyboard key in fixture $assetPath: $letter"
+            }
+            keyPositions[letter] = Point(
+                x = key.getDouble("centerX").toFloat(),
+                y = key.getDouble("centerY").toFloat()
+            )
+        }
+        val letters = keyPositions.keys.sorted().joinToString("")
+        val points = root.getJSONArray("points").let { samples ->
+            List(samples.length()) { index ->
+                samples.getJSONObject(index).let { point ->
+                    TimedPoint(
+                        x = point.getDouble("x").toFloat(),
+                        y = point.getDouble("y").toFloat(),
+                        t = point.getDouble("t").toFloat()
+                    )
+                }
+            }
+        }
+        return PinyinSwipeFixture(
+            id = root.getString("id"),
+            expectedTopCandidate = root.getString("expectedTopCandidate"),
+            letters = letters,
+            centerX = FloatArray(letters.length) { index -> keyPositions.getValue(letters[index]).x },
+            centerY = FloatArray(letters.length) { index -> keyPositions.getValue(letters[index]).y },
+            points = points,
+            tracedLetters = root.getString("tracedLetters")
         )
     }
 
@@ -235,6 +290,16 @@ class FutoSwipeDecoderInstrumentedTest {
         val geometricWord: String = expected,
         val tracedLetters: String = expected,
         val topN: Int = 4
+    )
+
+    private data class PinyinSwipeFixture(
+        val id: String,
+        val expectedTopCandidate: String,
+        val letters: String,
+        val centerX: FloatArray,
+        val centerY: FloatArray,
+        val points: List<TimedPoint>,
+        val tracedLetters: String
     )
 
     private data class Point(val x: Float, val y: Float)

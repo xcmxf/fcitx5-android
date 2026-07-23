@@ -34,6 +34,7 @@ import org.fcitx.fcitx5.android.input.swipe.SwipeLayout
 import org.fcitx.fcitx5.android.input.swipe.SwipePoint
 import org.fcitx.fcitx5.android.input.swipe.SwipeDecoderState
 import org.fcitx.fcitx5.android.input.swipe.SwipeRecognitionRequest
+import org.fcitx.fcitx5.android.input.swipe.SwipeTraceRecorder
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoder
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoders
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingMode
@@ -729,12 +730,24 @@ abstract class BaseKeyboard(
         val bridgeToFcitx = profile.usesPinyinBridge
         val decoder = getSwipeDecoder(bridgeToFcitx)
         val epoch = activeSwipeEpoch
+        val keyboardWidthPx = width
+        val keyboardHeightPx = height
+        val keyboardOrientation = resources.configuration.orientation
         swipeRecognitionExecutor.execute {
             val candidates = runCatching {
                 decoder.recognize(request)
             }.onFailure {
                 Timber.w(it, "Swipe typing failed")
             }.getOrNull().orEmpty()
+            SwipeTraceRecorder.record(
+                context = context,
+                profile = profile,
+                request = request,
+                keyboardWidthPx = keyboardWidthPx,
+                keyboardHeightPx = keyboardHeightPx,
+                orientation = keyboardOrientation,
+                candidates = candidates
+            )
             post {
                 if (!isAttachedToWindow || epoch != swipeRecognitionEpoch) return@post
                 if (candidates.isEmpty()) {

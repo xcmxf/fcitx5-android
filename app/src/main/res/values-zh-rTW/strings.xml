@@ -87,6 +87,8 @@
     <string name="crash_logs">當機紀錄檔</string>
     <string name="verbose_log">詳細記錄</string>
     <string name="verbose_log_summary">需要重新啟動</string>
+    <string name="record_swipe_traces">記錄滑行軌跡</string>
+    <string name="record_swipe_traces_summary">僅限偵錯版。僅在本機儲存手勢座標、按鍵序列與外掛候選；請勿記錄敏感輸入。</string>
     <string name="removed_x">已移除 %1$s</string>
     <string name="added_x">已新增%1$s</string>
     <string name="edited_x">已編輯%1$s</string>

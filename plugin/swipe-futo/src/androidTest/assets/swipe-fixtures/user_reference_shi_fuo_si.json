@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "id": "user-reference-shi-fuo-si",
+  "profile": "Pinyin",
+  "keyboard": {
+    "widthPx": 1080,
+    "heightPx": 520,
+    "orientation": 1,
+    "keys": [
+      { "letter": "a", "centerX": 0.09, "centerY": 0.50 },
+      { "letter": "b", "centerX": 0.66, "centerY": 0.76 },
+      { "letter": "c", "centerX": 0.44, "centerY": 0.76 },
+      { "letter": "d", "centerX": 0.29, "centerY": 0.50 },
+      { "letter": "e", "centerX": 0.25, "centerY": 0.24 },
+      { "letter": "f", "centerX": 0.39, "centerY": 0.50 },
+      { "letter": "g", "centerX": 0.49, "centerY": 0.50 },
+      { "letter": "h", "centerX": 0.59, "centerY": 0.50 },
+      { "letter": "i", "centerX": 0.75, "centerY": 0.24 },
+      { "letter": "j", "centerX": 0.69, "centerY": 0.50 },
+      { "letter": "k", "centerX": 0.79, "centerY": 0.50 },
+      { "letter": "l", "centerX": 0.89, "centerY": 0.50 },
+      { "letter": "m", "centerX": 0.88, "centerY": 0.76 },
+      { "letter": "n", "centerX": 0.77, "centerY": 0.76 },
+      { "letter": "o", "centerX": 0.85, "centerY": 0.24 },
+      { "letter": "p", "centerX": 0.95, "centerY": 0.24 },
+      { "letter": "q", "centerX": 0.05, "centerY": 0.24 },
+      { "letter": "r", "centerX": 0.35, "centerY": 0.24 },
+      { "letter": "s", "centerX": 0.19, "centerY": 0.50 },
+      { "letter": "t", "centerX": 0.45, "centerY": 0.24 },
+      { "letter": "u", "centerX": 0.65, "centerY": 0.24 },
+      { "letter": "v", "centerX": 0.55, "centerY": 0.76 },
+      { "letter": "w", "centerX": 0.15, "centerY": 0.24 },
+      { "letter": "x", "centerX": 0.33, "centerY": 0.76 },
+      { "letter": "y", "centerX": 0.55, "centerY": 0.24 },
+      { "letter": "z", "centerX": 0.22, "centerY": 0.76 }
+    ]
+  },
+  "points": [
+    { "x": 0.19, "y": 0.50, "t": 0.0 },
+    { "x": 0.59, "y": 0.50, "t": 80.0 },
+    { "x": 0.75, "y": 0.24, "t": 160.0 },
+    { "x": 0.39, "y": 0.50, "t": 240.0 },
+    { "x": 0.65, "y": 0.24, "t": 320.0 },
+    { "x": 0.85, "y": 0.24, "t": 400.0 },
+    { "x": 0.19, "y": 0.50, "t": 480.0 },
+    { "x": 0.75, "y": 0.24, "t": 560.0 }
+  ],
+  "tracedLetters": "shifuosi",
+  "pluginCandidates": [],
+  "expectedTopCandidate": "shifoushi"
+}
