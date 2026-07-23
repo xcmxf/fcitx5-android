@@ -185,7 +185,7 @@ internal object PinyinSyllableScorer {
 
     private val VALID_SYLLABLES = """
         a ai an ang ao e ei en eng er o ou
-        ya yan yang yao ye yi yin ying yo yong you yu yuan yue yun
+        ya yan yang yao ye yi yin ying yo yong you yu yuan yue yun yv yvan yvang yve
         wa wai wan wang wei wen weng wo wu
         ba bai ban bang bao bei ben beng bi bian biao bie bin bing bo bu
         pa pai pan pang pao pei pen peng pi pian piao pie pin ping po pou pu
@@ -193,14 +193,14 @@ internal object PinyinSyllableScorer {
         fa fan fang fei fen feng fo fou fu
         da dai dan dang dao de dei deng di dian diao die ding diu dong dou du duan dui dun duo
         ta tai tan tang tao te teng ti tian tiao tie ting tong tou tu tuan tui tun tuo
-        na nai nan nang nao ne nei nen neng ni nian niang niao nie nin ning niu nong nou nu nuan nuo nv nve
-        la lai lan lang lao le lei leng li lia lian liang liao lie lin ling liu lo long lou lu luan lun luo lv lve
+        na nai nan nang nao ne nei nen neng ni nian niang niao nie nin ning niu nong nou nu nuan nuo nv nve nue
+        la lai lan lang lao le lei leng li lia lian liang liao lie lin ling liu lo long lou lu luan lun luo lv lve lue
         ga gai gan gang gao ge gei gen geng gong gou gu gua guai guan guang gui gun guo
         ka kai kan kang kao ke ken keng kong kou ku kua kuai kuan kuang kui kun kuo
         ha hai han hang hao he hei hen heng hong hou hu hua huai huan huang hui hun huo
-        ji jia jian jiang jiao jie jin jing jiong jiu ju juan jue jun
-        qi qia qian qiang qiao qie qin qing qiong qiu qu quan que qun
-        xi xia xian xiang xiao xie xin xing xiong xiu xu xuan xue xun
+        ji jia jian jiang jiao jie jin jing jiong jiu ju juan jue jun jv jvan jvang jve
+        qi qia qian qiang qiao qie qin qing qiong qiu qu quan que qun qv qvan qvang qve
+        xi xia xian xiang xiao xie xin xing xiong xiu xu xuan xue xun xv xvan xvang xve
         zha zhai zhan zhang zhao zhe zhei zhen zheng zhi zhong zhou zhu zhua zhuai zhuan zhuang zhui zhun zhuo
         cha chai chan chang chao che chen cheng chi chong chou chu chua chuai chuan chuang chui chun chuo
         sha shai shan shang shao she shei shen sheng shi shou shu shua shuai shuan shuang shui shun shuo

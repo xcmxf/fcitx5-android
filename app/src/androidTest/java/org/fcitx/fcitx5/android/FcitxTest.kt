@@ -173,6 +173,35 @@ class FcitxTest {
     }
 
     @Test
+    fun testSwipePinyinBridgeAcceptsQwertyVAliases(): Unit = runBlocking {
+        val aliases = mapOf(
+            "jve" to "觉决绝",
+            "qve" to "却确",
+            "xve" to "学",
+            "lue" to "略",
+            "nue" to "虐"
+        )
+        fcitx.setEnabledIme(arrayOf("pinyin"))
+        activateTestInputContext()
+        fcitx.activateIme("pinyin")
+
+        aliases.forEach { (alias, expectedChinese) ->
+            fcitx.reset()
+            sendString(alias)
+            val candidates = waitForCandidates { list ->
+                list.any { candidate -> candidate.text.any(expectedChinese::contains) }
+            }
+
+            Assert.assertTrue(
+                "$alias did not produce an expected Chinese candidate: " +
+                    candidates.joinToString(),
+                candidates.any { candidate -> candidate.text.any(expectedChinese::contains) }
+            )
+        }
+        fcitx.reset()
+    }
+
+    @Test
     fun testInputPanelStatus(): Unit = runBlocking {
         fcitx.reset()
         Timber.i("after first reset: ${fcitx.isEmpty()}")

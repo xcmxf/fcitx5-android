@@ -141,6 +141,34 @@ class FutoSwipeDecoderInstrumentedTest {
     }
 
     @Test
+    fun treatsFcitxVAliasesAsStrongPinyin() {
+        listOf(
+            "jve", "jvan", "jvang",
+            "qve", "qvan", "qvang",
+            "xve", "xvan", "xvang",
+            "yve", "yvan", "yvang",
+            "lue", "nue"
+        ).forEach { alias ->
+            assertTrue(
+                "Fcitx-compatible Pinyin alias $alias must remain a strong trace candidate",
+                PinyinSyllableScorer.isStrongTraceCandidate(alias)
+            )
+        }
+    }
+
+    @Test
+    fun ranksFcitxVAliasesFromTheirQwertySwipeFirst() {
+        listOf("jve", "qve", "xve", "lue", "nue").forEach { alias ->
+            val result = decodePinyin(geometricWord = alias, tracedLetters = alias)
+
+            assertTrue(
+                "Expected Fcitx-compatible alias $alias as first result, got $result",
+                result.firstOrNull() == alias
+            )
+        }
+    }
+
+    @Test
     fun recognizesCommonEnglishFromSyntheticQwertySwipe() {
         decoder.warmUp(pinyinMode = false)
         listOf("hello", "world").forEach { expected ->

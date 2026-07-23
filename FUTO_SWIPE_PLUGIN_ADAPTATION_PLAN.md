@@ -47,6 +47,7 @@
 - 11 条核心拼音理想轨迹（包括 `nihao`、`zhongguo`、`shifou`、`shifoushi`）均以插件 Top1 作为 instrumentation 回归门槛；英文继续保留独立 smoke 回归。
 - 用户参考的 `shi-fuo-si` 已有黄金回放：受约束的 `fuo -> fou`、`si -> shi` 联合修复会把 `shifoushi` 排为 Top1；插件和主程序 Binder 测试均已覆盖。
 - 插件 instrumentation 还将 `zongguo -> zhongguo`、`congxin -> chongxin`、`suoshi -> shuoshi` 三类受约束卷舌修复固定为 Top1；这些仍是合成回归，不替代真实轨迹语料。
+- 拼音评分器接受 Fcitx/libime 的 QWERTY `v` 代替 `ü` 别名（如 `jve`、`qvan`、`xvang`）以及 `lue/nue`；插件 Top1 与 Fcitx 拼音桥均已回归这些别名能产生中文候选。
 - 已修正父键盘接管 swipe 后的事件收尾：后续 `ACTION_UP` 会交给 `onTouchEvent()` 完成解码，而不会提前重置手势状态。
 - `shifoushi` 已经过 Fcitx 拼音引擎 E2E 定向测试，能产生中文候选；这证明拼音桥，不代表真实手势准确率。
 - FUTO AAR、模型、英文词表与 Fcitx 拼音词典均使用固定 revision 和校验值。
