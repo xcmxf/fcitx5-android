@@ -30,17 +30,17 @@ class FutoSwipeDecoderInstrumentedTest {
     @Test
     fun recognizesCommonPinyinFromSyntheticQwertySwipe() {
         val samples = listOf(
-            PinyinSwipeSample(expected = "nihao", topN = 3),
-            PinyinSwipeSample(expected = "xiexie"),
-            PinyinSwipeSample(expected = "zaijian"),
-            PinyinSwipeSample(expected = "zhongguo"),
-            PinyinSwipeSample(expected = "chongxin"),
-            PinyinSwipeSample(expected = "shuoshi"),
-            PinyinSwipeSample(expected = "shifou"),
-            PinyinSwipeSample(expected = "shifoushi"),
-            PinyinSwipeSample(expected = "zhongguoren"),
-            PinyinSwipeSample(expected = "meiyou"),
-            PinyinSwipeSample(expected = "keyi")
+            PinyinSwipeSample(expected = "nihao", topN = 1),
+            PinyinSwipeSample(expected = "xiexie", topN = 1),
+            PinyinSwipeSample(expected = "zaijian", topN = 1),
+            PinyinSwipeSample(expected = "zhongguo", topN = 1),
+            PinyinSwipeSample(expected = "chongxin", topN = 1),
+            PinyinSwipeSample(expected = "shuoshi", topN = 1),
+            PinyinSwipeSample(expected = "shifou", topN = 1),
+            PinyinSwipeSample(expected = "shifoushi", topN = 1),
+            PinyinSwipeSample(expected = "zhongguoren", topN = 1),
+            PinyinSwipeSample(expected = "meiyou", topN = 1),
+            PinyinSwipeSample(expected = "keyi", topN = 1)
         )
 
         samples.forEach { sample ->
