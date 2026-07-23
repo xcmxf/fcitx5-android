@@ -17,6 +17,7 @@ class FutoSwipeDecoderInstrumentedTest {
     @Before
     fun setUp() {
         decoder = FutoSwipeDecoder(InstrumentationRegistry.getInstrumentation().targetContext)
+        decoder.warmUp(pinyinMode = true)
     }
 
     @After
@@ -93,6 +94,19 @@ class FutoSwipeDecoderInstrumentedTest {
         }
     }
 
+    @Test
+    fun recognizesCommonEnglishFromSyntheticQwertySwipe() {
+        decoder.warmUp(pinyinMode = false)
+        listOf("hello", "world").forEach { expected ->
+            val result = decodeEnglish(expected)
+
+            assertTrue(
+                "Expected $expected in top 3, got $result",
+                result.take(3).contains(expected)
+            )
+        }
+    }
+
     private fun decodePinyin(
         geometricWord: String,
         tracedLetters: String
@@ -109,6 +123,23 @@ class FutoSwipeDecoderInstrumentedTest {
             centerX = layout.centerX,
             centerY = layout.centerY,
             pinyinMode = true,
+            topK = 4
+        )
+    }
+
+    private fun decodeEnglish(word: String): List<String> {
+        val layout = qwertyLayout()
+        val swipePoints = syntheticSwipePoints(word, layout.positions)
+
+        return decoder.recognize(
+            x = swipePoints.map { it.x }.toFloatArray(),
+            y = swipePoints.map { it.y }.toFloatArray(),
+            t = swipePoints.map { it.t }.toFloatArray(),
+            letters = layout.letters,
+            tracedLetters = word,
+            centerX = layout.centerX,
+            centerY = layout.centerY,
+            pinyinMode = false,
             topK = 4
         )
     }

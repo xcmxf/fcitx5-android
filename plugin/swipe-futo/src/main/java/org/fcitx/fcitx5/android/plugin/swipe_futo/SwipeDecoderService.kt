@@ -8,6 +8,7 @@ import android.app.Service
 import android.content.Intent
 import android.os.IBinder
 import org.fcitx.fcitx5.android.common.ipc.ISwipeDecoderService
+import org.fcitx.fcitx5.android.common.ipc.SwipeDecoderProtocol
 import timber.log.Timber
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -18,7 +19,7 @@ class SwipeDecoderService : Service() {
     private val warmUpExecutor: ExecutorService = Executors.newSingleThreadExecutor()
 
     private val binder = object : ISwipeDecoderService.Stub() {
-        override fun getApiVersion(): Int = API_VERSION
+        override fun getApiVersion(): Int = SwipeDecoderProtocol.CURRENT_API_VERSION
 
         override fun warmUp(pinyinMode: Boolean) {
             warmUpExecutor.execute {
@@ -65,9 +66,5 @@ class SwipeDecoderService : Service() {
         warmUpExecutor.shutdownNow()
         decoder.close()
         super.onDestroy()
-    }
-
-    companion object {
-        private const val API_VERSION = 2
     }
 }

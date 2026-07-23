@@ -39,7 +39,35 @@ data class SwipeRecognitionRequest(
     val points: List<SwipePoint>,
     val layout: SwipeLayout,
     val tracedLetters: String
-)
+) {
+    /**
+     * Keeps the Binder payload bounded and rejects malformed data before it reaches a decoder.
+     * The first and final samples are retained when a long gesture is downsampled.
+     */
+    fun boundedForDecoder(maxPoints: Int = DEFAULT_MAX_SWIPE_POINTS): SwipeRecognitionRequest? {
+        if (maxPoints < MIN_SWIPE_POINT_COUNT || points.size < MIN_SWIPE_POINT_COUNT) return null
+        if (layout.letters.length != layout.centerX.size || layout.centerX.size != layout.centerY.size) {
+            return null
+        }
+        if (layout.centerX.any { !it.isFinite() } || layout.centerY.any { !it.isFinite() }) {
+            return null
+        }
+        if (points.any { !it.x.isFinite() || !it.y.isFinite() || !it.t.isFinite() }) return null
+        if (points.zipWithNext().any { (previous, next) -> next.t < previous.t }) return null
+
+        if (points.size <= maxPoints) return this
+        val lastIndex = points.lastIndex
+        val sampled = List(maxPoints) { index ->
+            points[(index * lastIndex) / (maxPoints - 1)]
+        }
+        return copy(points = sampled)
+    }
+
+    private companion object {
+        const val MIN_SWIPE_POINT_COUNT = 3
+        const val DEFAULT_MAX_SWIPE_POINTS = 96
+    }
+}
 
 data class SwipeCandidate(
     val word: String,
@@ -49,6 +77,8 @@ data class SwipeCandidate(
 enum class SwipeDecoderState {
     Ready,
     MissingPlugin,
+    Binding,
+    Warming,
     ApiMismatch,
     NotReady,
     Error
@@ -77,16 +107,36 @@ interface SwipeTypingDecoder : AutoCloseable {
     }
 }
 
+enum class SwipeTypingProfile {
+    English,
+    Pinyin,
+    Unsupported;
+
+    val usesPinyinBridge: Boolean
+        get() = this == Pinyin
+}
+
 object SwipeTypingMode {
-    fun usePinyinBridge(ime: InputMethodEntry?): Boolean {
-        if (ime == null) return true
+    fun profileFor(ime: InputMethodEntry?): SwipeTypingProfile {
+        if (ime == null) return SwipeTypingProfile.Pinyin
 
         val uniqueName = ime.uniqueName.lowercase(Locale.ROOT)
         val languageCode = ime.languageCode.lowercase(Locale.ROOT)
         val addon = ime.addon.lowercase(Locale.ROOT)
 
-        return uniqueName != "keyboard-us" &&
-                addon != "androidkeyboard" &&
-                !(languageCode == "en" && uniqueName.startsWith("keyboard-"))
+        if (addon == "pinyin" || uniqueName == "pinyin" || uniqueName.startsWith("pinyin-")) {
+            return SwipeTypingProfile.Pinyin
+        }
+        if (
+            languageCode.startsWith("en") &&
+            (addon == "androidkeyboard" || uniqueName.startsWith("keyboard-"))
+        ) {
+            return SwipeTypingProfile.English
+        }
+        return SwipeTypingProfile.Unsupported
+    }
+
+    fun usePinyinBridge(ime: InputMethodEntry?): Boolean {
+        return profileFor(ime).usesPinyinBridge
     }
 }

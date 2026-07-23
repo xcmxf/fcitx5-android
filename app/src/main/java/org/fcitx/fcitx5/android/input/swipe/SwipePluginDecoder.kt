@@ -15,7 +15,7 @@ import android.os.Looper
 import android.os.SystemClock
 import org.fcitx.fcitx5.android.BuildConfig
 import org.fcitx.fcitx5.android.common.ipc.ISwipeDecoderService
-import org.fcitx.fcitx5.android.core.data.DataManager
+import org.fcitx.fcitx5.android.common.ipc.SwipeDecoderProtocol
 import org.fcitx.fcitx5.android.core.data.PluginDescriptor
 import timber.log.Timber
 import java.util.concurrent.ExecutorService
@@ -24,8 +24,8 @@ import java.util.concurrent.Executors
 private const val SWIPE_DECODER_PLUGIN_NAME = "swipe_futo"
 
 object SwipePluginContract {
-    const val API_VERSION = 2
     const val SERVICE_ACTION = "${BuildConfig.APPLICATION_ID}.plugin.SWIPE_DECODER"
+    const val REQUIRED_SERVICE_PERMISSION = "${BuildConfig.APPLICATION_ID}.permission.PLUGIN"
 }
 
 class SwipePluginDecoder(
@@ -39,13 +39,13 @@ class SwipePluginDecoder(
 
     override fun warmUp() {
         val service = connection.getOrConnect() ?: run {
-            lastStatus = SwipeDecoderStatus(SwipeDecoderState.MissingPlugin)
+            lastStatus = connection.status()
             return
         }
         runCatching {
             service.warmUp(pinyinMode)
         }.onSuccess {
-            lastStatus = SwipeDecoderStatus.Ready
+            lastStatus = SwipeDecoderStatus(SwipeDecoderState.Warming)
         }.onFailure {
             Timber.w(it, "Swipe decoder plugin warm-up failed")
             lastStatus = SwipeDecoderStatus(SwipeDecoderState.Error, it.message)
@@ -58,7 +58,7 @@ class SwipePluginDecoder(
     override fun recognize(request: SwipeRecognitionRequest, topK: Int): List<SwipeCandidate> {
         val requestedTopK = topK.coerceIn(MIN_TOP_K, MAX_TOP_K)
         val service = connection.getOrConnect(RECOGNITION_BIND_TIMEOUT_MS) ?: run {
-            lastStatus = SwipeDecoderStatus(SwipeDecoderState.MissingPlugin)
+            lastStatus = connection.status()
             return emptyList()
         }
         val apiVersion = runCatching {
@@ -68,10 +68,11 @@ class SwipePluginDecoder(
             lastStatus = SwipeDecoderStatus(SwipeDecoderState.Error, it.message)
             connection.disconnect()
         }.getOrNull() ?: return emptyList()
-        if (apiVersion != SwipePluginContract.API_VERSION) {
+        if (!SwipeDecoderProtocol.isCompatible(apiVersion)) {
             lastStatus = SwipeDecoderStatus(
                 SwipeDecoderState.ApiMismatch,
-                "plugin=$apiVersion, app=${SwipePluginContract.API_VERSION}"
+                "plugin=$apiVersion, host=${SwipeDecoderProtocol.MIN_SUPPORTED_API_VERSION}" +
+                    "..${SwipeDecoderProtocol.MAX_SUPPORTED_API_VERSION}"
             )
             connection.disconnect()
             return emptyList()
@@ -87,7 +88,14 @@ class SwipePluginDecoder(
         if (readyResult.isFailure) return emptyList()
         if (!readyResult.getOrThrow()) {
             val status = runCatching { service.getStatus() }.getOrNull()
-            lastStatus = SwipeDecoderStatus(SwipeDecoderState.NotReady, status)
+            lastStatus = SwipeDecoderStatus(
+                if (status?.startsWith("FUTO Swipe unavailable:") == true) {
+                    SwipeDecoderState.Error
+                } else {
+                    SwipeDecoderState.Warming
+                },
+                status
+            )
             return emptyList()
         }
 
@@ -136,6 +144,18 @@ private class SwipeDecoderPluginConnection(
     private var binding = false
     private var closed = false
     private var missingPackageCheckedAt = 0L
+    private var lastPluginService: ComponentName? = null
+    private var lastBindError: String? = null
+
+    fun status(): SwipeDecoderStatus = synchronized(lock) {
+        when {
+            service != null -> SwipeDecoderStatus.Ready
+            binding -> SwipeDecoderStatus(SwipeDecoderState.Binding)
+            lastBindError != null -> SwipeDecoderStatus(SwipeDecoderState.Error, lastBindError)
+            lastPluginService == null -> SwipeDecoderStatus(SwipeDecoderState.MissingPlugin)
+            else -> SwipeDecoderStatus(SwipeDecoderState.NotReady)
+        }
+    }
 
     fun getOrConnect(waitMs: Long = 0L): ISwipeDecoderService? {
         synchronized(lock) {
@@ -168,13 +188,11 @@ private class SwipeDecoderPluginConnection(
         synchronized(lock) {
             if (bound || binding || closed) return
         }
-        val pluginService = findPluginService() ?: run {
-            missingPackageCheckedAt = SystemClock.uptimeMillis()
-            return
-        }
+        val pluginService = findPluginService() ?: return
         synchronized(lock) {
             if (bound || binding || closed) return
             binding = true
+            lastBindError = null
         }
         val ok = runCatching {
             val intent = Intent(SwipePluginContract.SERVICE_ACTION).setComponent(pluginService)
@@ -190,6 +208,7 @@ private class SwipeDecoderPluginConnection(
         if (!ok) {
             synchronized(lock) {
                 binding = false
+                lastBindError = "Plugin service is unavailable"
                 lock.notifyAll()
             }
             Timber.w(
@@ -200,12 +219,8 @@ private class SwipeDecoderPluginConnection(
     }
 
     private fun findPluginService(): ComponentName? {
-        val loadedPluginPackage = DataManager.getLoadedPlugins()
-            .firstOrNull { it.name == SWIPE_DECODER_PLUGIN_NAME }
-            ?.packageName
-
         if (SystemClock.uptimeMillis() - missingPackageCheckedAt < MISSING_PLUGIN_CHECK_INTERVAL_MS) {
-            return null
+            return synchronized(lock) { lastPluginService }
         }
 
         val intent = Intent(SwipePluginContract.SERVICE_ACTION)
@@ -218,17 +233,36 @@ private class SwipeDecoderPluginConnection(
             @Suppress("DEPRECATION")
             context.packageManager.queryIntentServices(intent, PackageManager.MATCH_ALL)
         }
-        return services.asSequence()
+        var rejectionReason: String? = null
+        val pluginService = services.asSequence()
             .map { it.serviceInfo }
             .filter { serviceInfo ->
-                serviceInfo.packageName.removePrefix(PluginDescriptor.pluginPackagePrefix)
-                    .removeSuffix(PluginDescriptor.pluginPackageSuffix) == SWIPE_DECODER_PLUGIN_NAME
+                serviceInfo.packageName == expectedPluginPackage()
             }
-            .sortedByDescending { serviceInfo ->
-                if (serviceInfo.packageName == loadedPluginPackage) 1 else 0
+            .firstOrNull { serviceInfo ->
+                trustedServiceFailure(serviceInfo)?.also { rejectionReason = it } == null
             }
-            .firstOrNull()
             ?.let { serviceInfo -> ComponentName(serviceInfo.packageName, serviceInfo.name) }
+        synchronized(lock) {
+            missingPackageCheckedAt = SystemClock.uptimeMillis()
+            lastPluginService = pluginService
+            lastBindError = rejectionReason
+        }
+        return pluginService
+    }
+
+    private fun expectedPluginPackage(): String =
+        PluginDescriptor.pluginPackagePrefix + SWIPE_DECODER_PLUGIN_NAME +
+            PluginDescriptor.pluginPackageSuffix
+
+    private fun trustedServiceFailure(serviceInfo: android.content.pm.ServiceInfo): String? = when {
+        !serviceInfo.exported -> "Swipe decoder service is not exported"
+        serviceInfo.permission != SwipePluginContract.REQUIRED_SERVICE_PERMISSION ->
+            "Swipe decoder service has an unexpected permission"
+        context.packageManager.checkSignatures(context.packageName, serviceInfo.packageName) !=
+            PackageManager.SIGNATURE_MATCH ->
+            "Swipe decoder plugin signing certificate does not match the host"
+        else -> null
     }
 
     override fun onServiceConnected(name: ComponentName, binder: IBinder) {
@@ -241,6 +275,7 @@ private class SwipeDecoderPluginConnection(
                 service = ISwipeDecoderService.Stub.asInterface(binder)
                 bound = true
                 binding = false
+                lastBindError = null
                 lock.notifyAll()
                 false
             }
@@ -262,14 +297,29 @@ private class SwipeDecoderPluginConnection(
             service = null
             bound = false
             binding = false
+            lastBindError = "Plugin service disconnected"
             lock.notifyAll()
         }
         Timber.d("Swipe decoder plugin disconnected: ${name.packageName}")
     }
 
     override fun onBindingDied(name: ComponentName?) {
+        synchronized(lock) {
+            lastBindError = "Plugin service binding died"
+        }
         disconnect()
         Timber.d("Swipe decoder plugin binding died: ${name?.packageName}")
+    }
+
+    override fun onNullBinding(name: ComponentName) {
+        synchronized(lock) {
+            service = null
+            bound = false
+            binding = false
+            lastBindError = "Plugin service returned no Binder"
+            lock.notifyAll()
+        }
+        Timber.w("Swipe decoder plugin returned no Binder: ${name.packageName}")
     }
 
     fun disconnect() {

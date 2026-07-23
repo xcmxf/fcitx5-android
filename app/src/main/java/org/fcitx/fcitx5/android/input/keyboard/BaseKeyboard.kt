@@ -37,6 +37,7 @@ import org.fcitx.fcitx5.android.input.swipe.SwipeRecognitionRequest
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoder
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingDecoders
 import org.fcitx.fcitx5.android.input.swipe.SwipeTypingMode
+import org.fcitx.fcitx5.android.input.swipe.SwipeTypingProfile
 import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.toast
 import splitties.dimensions.dp
@@ -54,6 +55,8 @@ import splitties.views.dsl.constraintlayout.rightToLeftOf
 import splitties.views.dsl.constraintlayout.topOfParent
 import splitties.views.dsl.core.add
 import timber.log.Timber
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 import java.util.Locale
 import kotlin.math.absoluteValue
 import kotlin.math.max
@@ -102,6 +105,9 @@ abstract class BaseKeyboard(
     private var swipeDecoder: SwipeTypingDecoder? = null
     private var swipeDecoderPinyinMode: Boolean? = null
     private var currentInputMethod: InputMethodEntry? = null
+    private var activeSwipeProfile = SwipeTypingProfile.Unsupported
+    private var swipeRecognitionEpoch = 0L
+    private var activeSwipeEpoch = 0L
     private var swipePointerId = MotionEvent.INVALID_POINTER_ID
     private var swipeStartX = 0f
     private var swipeStartY = 0f
@@ -556,7 +562,8 @@ abstract class BaseKeyboard(
     }
 
     private fun handleSwipeIntercept(event: MotionEvent): Boolean {
-        if (!swipeTyping) {
+        val profile = SwipeTypingMode.profileFor(currentInputMethod)
+        if (!swipeTyping || profile == SwipeTypingProfile.Unsupported) {
             resetSwipeTracking()
             return false
         }
@@ -574,6 +581,8 @@ abstract class BaseKeyboard(
                 swipeStartX = event.x
                 swipeStartY = event.y
                 swipeStartTime = event.eventTime
+                activeSwipeProfile = profile
+                activeSwipeEpoch = ++swipeRecognitionEpoch
                 swipeTracking = true
                 swipeIntercepted = false
                 swipePoints.clear()
@@ -581,7 +590,7 @@ abstract class BaseKeyboard(
                 swipeTrace.clear()
                 appendSwipePoint(event, 0)
                 appendSwipeLetter(label)
-                getSwipeDecoder(SwipeTypingMode.usePinyinBridge(currentInputMethod)).warmUp()
+                warmUpSwipeDecoder(getSwipeDecoder(profile.usesPinyinBridge))
             }
             MotionEvent.ACTION_POINTER_DOWN -> resetSwipeTracking()
             MotionEvent.ACTION_MOVE -> {
@@ -601,7 +610,12 @@ abstract class BaseKeyboard(
                     return true
                 }
             }
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> resetSwipeTracking()
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    invalidatePendingSwipeRecognition()
+                }
+                resetSwipeTracking()
+            }
         }
         return false
     }
@@ -632,6 +646,7 @@ abstract class BaseKeyboard(
                 return true
             }
             MotionEvent.ACTION_CANCEL -> {
+                invalidatePendingSwipeRecognition()
                 resetSwipeTracking()
                 return true
             }
@@ -708,23 +723,38 @@ abstract class BaseKeyboard(
             points = swipePoints.toList(),
             layout = layout,
             tracedLetters = swipeTrace.toString()
-        )
-        val bridgeToFcitx = SwipeTypingMode.usePinyinBridge(currentInputMethod)
+        ).boundedForDecoder() ?: return
+        val profile = activeSwipeProfile
+        if (profile == SwipeTypingProfile.Unsupported) return
+        val bridgeToFcitx = profile.usesPinyinBridge
         val decoder = getSwipeDecoder(bridgeToFcitx)
-        val candidates = runCatching {
-            decoder.recognize(request)
-        }.onFailure {
-            Timber.w(it, "Swipe typing failed")
-        }.getOrNull().orEmpty()
-        if (candidates.isEmpty()) {
-            showSwipeStatus(decoder)
-            return
+        val epoch = activeSwipeEpoch
+        swipeRecognitionExecutor.execute {
+            val candidates = runCatching {
+                decoder.recognize(request)
+            }.onFailure {
+                Timber.w(it, "Swipe typing failed")
+            }.getOrNull().orEmpty()
+            post {
+                if (!isAttachedToWindow || epoch != swipeRecognitionEpoch) return@post
+                if (candidates.isEmpty()) {
+                    showSwipeStatus(decoder)
+                    return@post
+                }
+                val action = swipeCandidatesToKeyAction(candidates, bridgeToFcitx) ?: run {
+                    showSwipeStatus(decoder)
+                    return@post
+                }
+                onAction(action)
+            }
         }
-        val action = swipeCandidatesToKeyAction(candidates, bridgeToFcitx) ?: run {
-            showSwipeStatus(decoder)
-            return
+    }
+
+    private fun warmUpSwipeDecoder(decoder: SwipeTypingDecoder) {
+        swipeRecognitionExecutor.execute {
+            runCatching { decoder.warmUp() }
+                .onFailure { Timber.w(it, "Swipe decoder warm-up failed") }
         }
-        onAction(action)
     }
 
     private fun showSwipeStatus(decoder: SwipeTypingDecoder) {
@@ -733,6 +763,10 @@ abstract class BaseKeyboard(
             SwipeDecoderState.Ready -> context.getString(R.string.swipe_no_candidates)
             SwipeDecoderState.MissingPlugin ->
                 context.getString(R.string.swipe_decoder_plugin_missing)
+            SwipeDecoderState.Binding ->
+                context.getString(R.string.swipe_decoder_plugin_binding)
+            SwipeDecoderState.Warming ->
+                context.getString(R.string.swipe_decoder_plugin_warming)
             SwipeDecoderState.ApiMismatch ->
                 context.getString(R.string.swipe_decoder_plugin_api_mismatch)
             SwipeDecoderState.NotReady ->
@@ -787,6 +821,12 @@ abstract class BaseKeyboard(
         invalidate()
     }
 
+    private fun invalidatePendingSwipeRecognition() {
+        swipeRecognitionEpoch++
+        activeSwipeEpoch = 0L
+        activeSwipeProfile = SwipeTypingProfile.Unsupported
+    }
+
     @CallSuper
     protected open fun onAction(
         action: KeyAction,
@@ -830,18 +870,32 @@ abstract class BaseKeyboard(
 
     open fun onInputMethodUpdate(ime: InputMethodEntry) {
         currentInputMethod = ime
+        invalidatePendingSwipeRecognition()
+        resetSwipeTracking()
         swipeDecoder?.close()
         swipeDecoder = null
         swipeDecoderPinyinMode = null
-        if (swipeTyping) {
-            getSwipeDecoder(SwipeTypingMode.usePinyinBridge(ime)).warmUp()
+        val profile = SwipeTypingMode.profileFor(ime)
+        if (swipeTyping && profile != SwipeTypingProfile.Unsupported) {
+            warmUpSwipeDecoder(getSwipeDecoder(profile.usesPinyinBridge))
         }
     }
 
     open fun onDetach() {
+        invalidatePendingSwipeRecognition()
+        resetSwipeTracking()
         swipeDecoder?.close()
         swipeDecoder = null
         swipeDecoderPinyinMode = null
+    }
+
+    private companion object {
+        val swipeRecognitionExecutor: ExecutorService =
+            Executors.newSingleThreadExecutor { runnable ->
+                Thread(runnable, "SwipeRecognition").apply {
+                    isDaemon = true
+                }
+            }
     }
 
 }

@@ -155,6 +155,8 @@
     <string name="swipe_typing_summary">實驗功能：需要配套安裝 FUTO Swipe 解碼外掛。開啟後會停用鍵盤區划動輸入標點及數字。</string>
     <string name="swipe_no_candidates">沒有滑行輸入候選</string>
     <string name="swipe_decoder_plugin_missing">請安裝或重新載入 FUTO Swipe 解碼外掛</string>
+    <string name="swipe_decoder_plugin_binding">正在連線至 FUTO Swipe 解碼外掛</string>
+    <string name="swipe_decoder_plugin_warming">FUTO Swipe 解碼器正在預熱</string>
     <string name="swipe_decoder_plugin_api_mismatch">FUTO Swipe 解碼外掛版本不相容</string>
     <string name="swipe_decoder_plugin_not_ready">FUTO Swipe 解碼器尚未就緒</string>
     <string name="swipe_decoder_plugin_error">FUTO Swipe 解碼失敗</string>

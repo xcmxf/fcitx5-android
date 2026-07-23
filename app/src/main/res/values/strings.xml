@@ -157,6 +157,8 @@
     <string name="swipe_typing_summary">Experimental: requires the FUTO Swipe decoder plugin. Swipe punctuation and digit input is disabled while this is on.</string>
     <string name="swipe_no_candidates">No swipe candidate</string>
     <string name="swipe_decoder_plugin_missing">Install or reload the FUTO Swipe decoder plugin</string>
+    <string name="swipe_decoder_plugin_binding">Connecting to the FUTO Swipe decoder plugin</string>
+    <string name="swipe_decoder_plugin_warming">FUTO Swipe decoder is warming up</string>
     <string name="swipe_decoder_plugin_api_mismatch">FUTO Swipe decoder plugin is incompatible</string>
     <string name="swipe_decoder_plugin_not_ready">FUTO Swipe decoder is not ready</string>
     <string name="swipe_decoder_plugin_error">FUTO Swipe decoder failed</string>

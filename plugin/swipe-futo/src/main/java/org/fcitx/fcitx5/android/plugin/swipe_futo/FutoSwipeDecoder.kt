@@ -14,25 +14,52 @@ import kotlin.math.hypot
 /** Owns the GPL FUTO decoder and its model/dictionary state inside the plugin process. */
 internal class FutoSwipeDecoder(context: Context) : Closeable {
 
-    private val files = FutoSwipeAssets.prepare(context)
+    private val appContext = context.applicationContext
+    private val files by lazy { FutoSwipeAssets.prepare(appContext) }
+    private val lock = Any()
     private val decoders = mutableMapOf<Boolean, FutoSwipeSession>()
+    private val warmingModes = mutableSetOf<Boolean>()
     private var lastError: String? = null
+    private var closed = false
 
-    @Synchronized
     fun warmUp(pinyinMode: Boolean) {
-        sessionFor(pinyinMode)
+        val shouldWarmUp = synchronized(lock) {
+            if (closed || decoders.containsKey(pinyinMode) || !warmingModes.add(pinyinMode)) {
+                false
+            } else {
+                lastError = null
+                true
+            }
+        }
+        if (!shouldWarmUp) return
+
+        runCatching { createSession(pinyinMode) }
+            .onSuccess { session ->
+                val shouldClose = synchronized(lock) {
+                    warmingModes.remove(pinyinMode)
+                    if (closed) {
+                        true
+                    } else {
+                        decoders[pinyinMode] = session
+                        false
+                    }
+                }
+                if (shouldClose) synchronized(session) { session.close() }
+            }
+            .onFailure { error ->
+                synchronized(lock) {
+                    warmingModes.remove(pinyinMode)
+                    if (!closed) lastError = error.message ?: error.javaClass.simpleName
+                }
+                Timber.w(error, "FUTO Swipe warm-up failed")
+            }
     }
 
-    @Synchronized
-    fun isReady(pinyinMode: Boolean): Boolean = runCatching {
-        sessionFor(pinyinMode)
-        true
-    }.onFailure {
-        lastError = it.message ?: it.javaClass.simpleName
-        Timber.w(it, "FUTO Swipe decoder is unavailable")
-    }.isSuccess
+    /** This is intentionally a state lookup: loading only happens on the warm-up executor. */
+    fun isReady(pinyinMode: Boolean): Boolean = synchronized(lock) {
+        decoders.containsKey(pinyinMode)
+    }
 
-    @Synchronized
     fun recognize(
         x: FloatArray?,
         y: FloatArray?,
@@ -44,46 +71,96 @@ internal class FutoSwipeDecoder(context: Context) : Closeable {
         pinyinMode: Boolean,
         topK: Int
     ): List<String> {
-        if (x == null || y == null || t == null || letters == null || centerX == null || centerY == null) {
+        val pointX = x ?: return emptyList()
+        val pointY = y ?: return emptyList()
+        val pointT = t ?: return emptyList()
+        val layoutLetters = letters ?: return emptyList()
+        val layoutCenterX = centerX ?: return emptyList()
+        val layoutCenterY = centerY ?: return emptyList()
+        if (!isValidPayload(pointX, pointY, pointT, layoutLetters, layoutCenterX, layoutCenterY)) {
             return emptyList()
         }
-        if (x.size < 3 || x.size != y.size || x.size != t.size || centerX.size != centerY.size) {
-            return emptyList()
-        }
+        val session = synchronized(lock) { decoders[pinyinMode] } ?: return emptyList()
 
         return runCatching {
-            sessionFor(pinyinMode).recognize(
-                x = x,
-                y = y,
-                t = t,
-                letters = letters,
-                tracedLetters = tracedLetters,
-                centerX = centerX,
-                centerY = centerY,
-                topK = topK
-            )
+            synchronized(session) {
+                session.recognize(
+                    x = pointX,
+                    y = pointY,
+                    t = pointT,
+                    letters = layoutLetters,
+                    tracedLetters = tracedLetters,
+                    centerX = layoutCenterX,
+                    centerY = layoutCenterY,
+                    topK = topK
+                )
+            }
         }.onFailure {
-            lastError = it.message ?: it.javaClass.simpleName
+            synchronized(lock) {
+                lastError = it.message ?: it.javaClass.simpleName
+            }
             Timber.w(it, "FUTO Swipe recognition failed")
         }.getOrDefault(emptyList())
     }
 
-    @get:Synchronized
     val status: String
-        get() = lastError?.let { "FUTO Swipe unavailable: $it" } ?: "FUTO Swipe decoder ready"
+        get() = synchronized(lock) {
+            lastError?.let { "FUTO Swipe unavailable: $it" } ?: when {
+                warmingModes.isNotEmpty() -> "FUTO Swipe decoder warming"
+                decoders.isEmpty() -> "FUTO Swipe decoder not initialized"
+                else -> "FUTO Swipe decoder ready"
+            }
+        }
 
-    @Synchronized
     override fun close() {
-        decoders.values.forEach(FutoSwipeSession::close)
-        decoders.clear()
+        val sessions = synchronized(lock) {
+            closed = true
+            warmingModes.clear()
+            decoders.values.toList().also { decoders.clear() }
+        }
+        sessions.forEach { session -> synchronized(session) { session.close() } }
     }
 
-    private fun sessionFor(pinyinMode: Boolean): FutoSwipeSession = decoders.getOrPut(pinyinMode) {
+    private fun createSession(pinyinMode: Boolean): FutoSwipeSession =
         FutoSwipeSession(
             encoder = files.encoder,
             dictionary = if (pinyinMode) files.pinyinDictionary else files.englishDictionary,
             traceRescoring = pinyinMode
         )
+
+    private fun isValidPayload(
+        x: FloatArray?,
+        y: FloatArray?,
+        t: FloatArray?,
+        letters: String?,
+        centerX: FloatArray?,
+        centerY: FloatArray?
+    ): Boolean {
+        if (x == null || y == null || t == null || letters == null || centerX == null || centerY == null) {
+            return false
+        }
+        if (
+            x.size !in MIN_SWIPE_POINT_COUNT..MAX_SWIPE_POINT_COUNT ||
+            x.size != y.size ||
+            x.size != t.size ||
+            letters.length != centerX.size ||
+            centerX.size != centerY.size
+        ) {
+            return false
+        }
+        if (x.any { !it.isFinite() } || y.any { !it.isFinite() } || t.any { !it.isFinite() }) {
+            return false
+        }
+        if (centerX.any { !it.isFinite() } || centerY.any { !it.isFinite() }) return false
+        for (index in 1 until t.size) {
+            if (t[index] < t[index - 1]) return false
+        }
+        return true
+    }
+
+    private companion object {
+        const val MIN_SWIPE_POINT_COUNT = 3
+        const val MAX_SWIPE_POINT_COUNT = 96
     }
 }
 
