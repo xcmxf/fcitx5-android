@@ -26,7 +26,7 @@ import org.fcitx.fcitx5.android.data.theme.ThemeManager
 import org.fcitx.fcitx5.android.data.theme.ThemePrefs
 import org.fcitx.fcitx5.android.utils.item
 import org.fcitx.fcitx5.android.utils.navbarFrameHeight
-import org.fcitx.fcitx5.android.utils.styledColorOr
+import org.fcitx.fcitx5.android.utils.styledColorOrDefault
 import splitties.views.dsl.core.withTheme
 import kotlin.math.max
 
@@ -86,9 +86,9 @@ abstract class BaseInputView(
                 menu.add(buildSpannedString {
                     bold {
                         color(
-                            context.styledColorOr(
+                            context.styledColorOrDefault(
                                 android.R.attr.colorAccent,
-                                theme.genericActiveBackgroundColor
+                                theme.genericActiveForegroundColor
                             )
                         ) {
                             append(text)

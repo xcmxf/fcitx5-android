@@ -11,6 +11,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Outline
 import android.graphics.Paint
+import android.graphics.Point
 import android.graphics.Rect
 import android.graphics.RectF
 import android.graphics.drawable.GradientDrawable
@@ -48,6 +49,8 @@ import org.fcitx.fcitx5.android.input.broadcast.PunctuationComponent
 import org.fcitx.fcitx5.android.input.broadcast.ReturnKeyDrawableComponent
 import org.fcitx.fcitx5.android.input.candidates.horizontal.HorizontalCandidateComponent
 import org.fcitx.fcitx5.android.input.keyboard.CommonKeyActionListener
+import org.fcitx.fcitx5.android.input.keyboard.KeyboardHeightPercentBase.DisplayMetrics
+import org.fcitx.fcitx5.android.input.keyboard.KeyboardHeightPercentBase.RealSize
 import org.fcitx.fcitx5.android.input.keyboard.KeyboardWindow
 import org.fcitx.fcitx5.android.input.picker.emojiPicker
 import org.fcitx.fcitx5.android.input.picker.emoticonPicker
@@ -58,6 +61,7 @@ import org.fcitx.fcitx5.android.input.wm.InputWindow
 import org.fcitx.fcitx5.android.input.wm.InputWindowManager
 import org.fcitx.fcitx5.android.utils.alpha
 import org.fcitx.fcitx5.android.utils.unset
+import org.fcitx.fcitx5.android.utils.windowManager
 import org.mechdancer.dependency.DynamicScope
 import org.mechdancer.dependency.manager.wrapToUniqueComponent
 import org.mechdancer.dependency.plusAssign
@@ -82,6 +86,7 @@ import splitties.views.dsl.core.view
 import splitties.views.dsl.core.wrapContent
 import splitties.views.imageDrawable
 import splitties.views.imageResource
+import timber.log.Timber
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -243,6 +248,9 @@ class InputView(
     private val floatingKeyboardWidthPercent = keyboardPrefs.floatingKeyboardWidthPercent
     private val floatingKeyboardWidthPercentLandscape = keyboardPrefs.floatingKeyboardWidthPercentLandscape
 
+    private val advancedPrefs = AppPrefs.getInstance().advanced
+    private val keyboardHeightPercentBase = advancedPrefs.keyboardHeightPercentBase
+
     private val keyboardSizePrefs = listOf(
         keyboardPrefs.floatingKeyboardEnabled,
         keyboardHeightPercent,
@@ -253,15 +261,29 @@ class InputView(
         keyboardBottomPaddingLandscape,
         floatingKeyboardWidthPercent,
         floatingKeyboardWidthPercentLandscape,
+        keyboardHeightPercentBase,
     )
 
     private val keyboardHeightPx: Int
         get() {
+            val baseType = keyboardHeightPercentBase.getValue()
+            val base = when (baseType) {
+                DisplayMetrics -> resources.displayMetrics.heightPixels
+                RealSize -> Point().also {
+                    @Suppress("DEPRECATION")
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                        context.display
+                    } else {
+                        context.windowManager.defaultDisplay
+                    }.getRealSize(it)
+                }.y
+            }
             val percent = activeKeyboardHeightPercentValue
+            Timber.d("keyboardHeightPx get(): baseType=${baseType}, base=${base}, percent=${percent}")
             val baseHeight = (if (floatingKeyboardEnabled) {
-                height.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+                height.takeIf { it > 0 } ?: base
             } else {
-                resources.displayMetrics.heightPixels
+                base
             }) * percent / 100
             return if (floatingKeyboardEnabled) {
                 val scale = if (windowManager.isAttached(KeyboardWindow)) {
@@ -695,6 +717,7 @@ class InputView(
         })
 
         keyboardPrefs.registerOnChangeListener(onKeyboardSizeChangeListener)
+        advancedPrefs.registerOnChangeListener(onKeyboardSizeChangeListener)
     }
 
     private fun updateKeyboardSize() {
@@ -1224,6 +1247,7 @@ class InputView(
     }
 
     override fun onDetachedFromWindow() {
+        advancedPrefs.unregisterOnChangeListener(onKeyboardSizeChangeListener)
         keyboardPrefs.unregisterOnChangeListener(onKeyboardSizeChangeListener)
         // clear DynamicScope, implies that InputView should not be attached again after detached.
         scope.clear()
