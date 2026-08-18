@@ -8,6 +8,7 @@
 package org.fcitx.fcitx5.android.utils
 
 import android.content.Context
+import android.content.res.Resources
 import android.util.TypedValue
 import android.view.View
 import androidx.annotation.AttrRes
@@ -35,7 +36,7 @@ inline val ConstraintLayout.LayoutParams.unset
     get() = ConstraintLayout.LayoutParams.UNSET
 
 @ColorInt
-fun Context.styledColorOrDefault(@AttrRes attrRes: Int, @ColorInt defaultValue: Int) =
+fun Context.styledColorOrDefault(@AttrRes attrRes: Int, @ColorInt defaultValue: Int) = try {
     withResolvedThemeAttribute(attrRes) {
         when (type) {
             in TypedValue.TYPE_FIRST_COLOR_INT..TypedValue.TYPE_LAST_COLOR_INT -> data
@@ -43,6 +44,9 @@ fun Context.styledColorOrDefault(@AttrRes attrRes: Int, @ColorInt defaultValue: 
             else -> defaultValue
         }
     }
+} catch (_: Resources.NotFoundException) {
+    defaultValue
+}
 
 @Suppress("NOTHING_TO_INLINE")
 inline fun View.styledColorOrDefault(@AttrRes attrRes: Int, @ColorInt defaultValue: Int) =
