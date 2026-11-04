@@ -254,6 +254,13 @@ class InputView(
         keyboardHeightPercentBase,
     )
 
+    private val floatingHeightScale: Float
+        get() = if (windowManager.isAttached(KeyboardWindow)) {
+            FLOATING_KEYBOARD_HEIGHT_SCALE
+        } else {
+            FLOATING_PANEL_HEIGHT_SCALE
+        }
+
     private val keyboardHeightPx: Int
         get() {
             val baseType = keyboardHeightPercentBase.getValue()
@@ -276,12 +283,7 @@ class InputView(
                 base
             }) * percent / 100
             return if (floatingKeyboardEnabled) {
-                val scale = if (windowManager.isAttached(KeyboardWindow)) {
-                    FLOATING_KEYBOARD_HEIGHT_SCALE
-                } else {
-                    FLOATING_PANEL_HEIGHT_SCALE
-                }
-                (baseHeight * scale).roundToInt()
+                (baseHeight * floatingHeightScale).roundToInt()
             } else {
                 baseHeight
             }
@@ -542,12 +544,7 @@ class InputView(
                     .roundToInt()
                     .coerceIn(minWidthPercent, MAX_FLOATING_KEYBOARD_WIDTH_PERCENT)
                 val newWindowHeight = (floatingResizeStartWindowHeight + verticalDelta).roundToInt()
-                val heightScale = if (windowManager.isAttached(KeyboardWindow)) {
-                    FLOATING_KEYBOARD_HEIGHT_SCALE
-                } else {
-                    FLOATING_PANEL_HEIGHT_SCALE
-                }
-                val heightPercent = (newWindowHeight * 100f / parentHeight / heightScale)
+                val heightPercent = (newWindowHeight * 100f / parentHeight / floatingHeightScale)
                     .roundToInt()
                     .coerceIn(MIN_KEYBOARD_HEIGHT_PERCENT, MAX_KEYBOARD_HEIGHT_PERCENT)
                 activeFloatingKeyboardWidthPercent.setValue(widthPercent)
@@ -865,12 +862,7 @@ class InputView(
     }
 
     private fun setFloatingKeyboardActive(enabled: Boolean) {
-        val active = enabled && keyboardPrefs.floatingKeyboardEnabled.getValue()
-        if (floatingKeyboardEnabled == active) {
-            applyKeyboardMode()
-            return
-        }
-        floatingKeyboardEnabled = active
+        floatingKeyboardEnabled = enabled && keyboardPrefs.floatingKeyboardEnabled.getValue()
         applyKeyboardMode()
     }
 

@@ -42,6 +42,10 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v5
 
+      - name: Test floating keyboard bounds
+        if: matrix.abi == 'x86_64'
+        run: ./gradlew :app:testDebugUnitTest --tests org.fcitx.fcitx5.android.input.FloatingKeyboardBoundsTest -PbuildABI=${{ matrix.abi }}
+
       - name: Build release APK
         run: ./gradlew :app:assembleRelease -PbuildABI=${{ matrix.abi }}
 
