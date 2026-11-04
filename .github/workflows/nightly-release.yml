@@ -8,7 +8,7 @@ on:
       target_branch:
         description: "Fork branch to sync and release"
         required: true
-        default: "test-floating-keyboard-20260604-225446"
+        default: "main"
       upstream_branch:
         description: "Upstream branch to merge"
         required: true
@@ -23,7 +23,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TARGET_BRANCH: ${{ github.event.inputs.target_branch || 'test-floating-keyboard-20260604-225446' }}
+  TARGET_BRANCH: ${{ github.event.inputs.target_branch || 'main' }}
   UPSTREAM_BRANCH: ${{ github.event.inputs.upstream_branch || 'master' }}
   UPSTREAM_REPO: fcitx5-android/fcitx5-android
   NOTIFY_USER: ${{ github.repository_owner }}
@@ -35,7 +35,7 @@ jobs:
       - name: Fetch source code
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.inputs.target_branch || 'test-floating-keyboard-20260604-225446' }}
+          ref: ${{ github.event.inputs.target_branch || 'main' }}
           fetch-depth: 0
           submodules: recursive
 

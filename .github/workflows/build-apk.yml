@@ -3,7 +3,7 @@ name: Build APK
 on:
   push:
     branches:
-      - test-floating-keyboard-20260604-225446
+      - main
   workflow_dispatch:
 
 jobs:
