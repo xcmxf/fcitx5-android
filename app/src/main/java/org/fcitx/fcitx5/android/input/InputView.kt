@@ -103,7 +103,6 @@ class InputView(
         private const val MIN_FLOATING_KEYBOARD_WIDTH_PERCENT = 35
         private const val MAX_FLOATING_KEYBOARD_WIDTH_PERCENT = 100
         private const val MIN_FLOATING_KEYBOARD_WIDTH_DP = 320
-        private const val FLOATING_DRAG_HANDLE_HEIGHT_DP = 24
         private const val FLOATING_MOVE_HANDLE_TOUCH_WIDTH_DP = 140
         private const val FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP = 32
         private const val FLOATING_MOVE_HANDLE_BAR_WIDTH_DP = 92
@@ -112,7 +111,6 @@ class InputView(
         private const val FLOATING_EXTERNAL_CONTROLS_GAP_DP = 6
         private const val FLOATING_RESET_BUTTON_EXTERNAL_OFFSET_DP = 40
         private const val FLOATING_DOCK_THRESHOLD_DP = 20
-        private const val FLOATING_RESIZE_HANDLE_SIZE_DP = 40
         private const val FLOATING_KEYBOARD_CORNER_RADIUS_DP = 28
         private const val FLOATING_KEYBOARD_SIDE_CONTENT_PADDING_DP = 6
         private const val FLOATING_KEYBOARD_BAR_PADDING_DP = 18
@@ -123,8 +121,6 @@ class InputView(
         private const val FLOATING_CORNER_HANDLE_TOUCH_BAND_DP = 18
         private const val FLOATING_CORNER_HANDLE_STROKE_DP = 5
         private const val FLOATING_CORNER_HANDLE_SWEEP_DEGREES = 64f
-        private const val FLOATING_RESET_BUTTON_MIN_WIDTH_DP = 340
-        private const val FLOATING_RESET_BUTTON_MIN_HEIGHT_DP = 220
         private const val FLOATING_DOCK_TARGET_HEIGHT_DP = FLOATING_MOVE_HANDLE_TOUCH_HEIGHT_DP
         private const val FLOATING_DOCK_TARGET_HORIZONTAL_MARGIN_DP = 0
         private const val FLOATING_DOCK_TARGET_BOTTOM_MARGIN_DP = 4
@@ -160,12 +156,6 @@ class InputView(
         // height as keyboardBottomPadding
         // bottomMargin as WindowInsets (Navigation Bar) offset
         setOnClickListener(placeholderOnClickListener)
-    }
-    private val resizeHandle = imageView {
-        imageResource = R.drawable.ic_baseline_drag_handle_24
-        scaleType = ImageView.ScaleType.CENTER
-        alpha = 0f
-        contentDescription = context.getString(R.string.resize_floating_keyboard)
     }
     private val floatingMoveHandle = FloatingMoveHandleView(context)
     private val floatingEditOverlay = view(::FrameLayout) {
@@ -330,9 +320,6 @@ class InputView(
             return max(0, parentWidth - keyboardSidePaddingPx * 2)
         }
 
-    private val floatingDragHandleHeightPx: Int
-        get() = dp(FLOATING_DRAG_HANDLE_HEIGHT_DP)
-
     private val activeFloatingKeyboardWidthPercent
         get() = when (resources.configuration.orientation) {
             Configuration.ORIENTATION_LANDSCAPE -> floatingKeyboardWidthPercentLandscape
@@ -382,7 +369,6 @@ class InputView(
     private var floatingResizeStartKeyboardHeight = 0
     private var floatingResizeStartWindowHeight = 0
     private var floatingDragMoved = false
-    private var floatingDockTargetVisible = false
     private var lastFloatingMoveHandleTapTime = 0L
     private var floatingEditControlsVisible = false
     private val floatingTouchSlop = ViewConfiguration.get(context).scaledTouchSlop
@@ -659,15 +645,10 @@ class InputView(
                 endToStartOf(rightPaddingSpace)
                 bottomOfParent()
             })
-            add(resizeHandle, lParams(dp(FLOATING_RESIZE_HANDLE_SIZE_DP), dp(FLOATING_RESIZE_HANDLE_SIZE_DP)) {
-                endOfParent()
-                bottomOfParent()
-            })
         }
 
         bottomPaddingSpace.setOnTouchListener(floatingKeyboardDragListener)
         floatingMoveHandle.setOnTouchListener(floatingKeyboardDragListener)
-        resizeHandle.setOnTouchListener(floatingKeyboardResizeListener(1, 1))
 
         updateKeyboardSize()
 
@@ -740,7 +721,6 @@ class InputView(
             leftPaddingSpace.visibility = GONE
             rightPaddingSpace.visibility = GONE
             floatingMoveHandle.visibility = VISIBLE
-            resizeHandle.visibility = GONE
             windowManager.view.translationY = 0f
             val floatingSidePadding = max(sidePadding, dp(FLOATING_KEYBOARD_SIDE_CONTENT_PADDING_DP))
             windowManager.view.setPadding(
@@ -767,7 +747,6 @@ class InputView(
             leftPaddingSpace.visibility = GONE
             rightPaddingSpace.visibility = GONE
             floatingMoveHandle.visibility = GONE
-            resizeHandle.visibility = GONE
             windowManager.view.translationY = 0f
             windowManager.view.setPadding(0, 0, 0, 0)
             windowManager.view.updateLayoutParams<LayoutParams> {
@@ -780,7 +759,6 @@ class InputView(
             leftPaddingSpace.visibility = VISIBLE
             rightPaddingSpace.visibility = VISIBLE
             floatingMoveHandle.visibility = GONE
-            resizeHandle.visibility = GONE
             windowManager.view.translationY = 0f
             windowManager.view.setPadding(0, 0, 0, 0)
             leftPaddingSpace.updateLayoutParams {
@@ -977,7 +955,7 @@ class InputView(
     }
 
     private fun setFloatingDockTargetVisible(visible: Boolean) {
-        floatingDockTargetVisible = visible && floatingKeyboardEnabled
+        val floatingDockTargetVisible = visible && floatingKeyboardEnabled
         floatingDockTarget.visibility = if (floatingDockTargetVisible) VISIBLE else GONE
         if (floatingDockTargetVisible) {
             floatingDockTarget.elevation = keyboardView.elevation + 0.5f
@@ -1109,21 +1087,27 @@ class InputView(
         updateKeyboardSize()
     }
 
+    private fun floatingKeyboardBounds() = FloatingKeyboardBounds(
+        floatingKeyboardAvailableWidthPx,
+        height,
+        navBarBottomInset,
+        keyboardView.width,
+        keyboardView.height,
+    )
+
     private fun restoreFloatingKeyboardPosition() {
         if (!floatingKeyboardEnabled || width <= 0 || keyboardView.width <= 0) return
-        val maxX = max(0, floatingKeyboardAvailableWidthPx - keyboardView.width).toFloat()
-        val maxY = max(0, height - navBarBottomInset - keyboardView.height).toFloat()
-        val x = maxX * activeFloatingKeyboardXRatio.getValue().coerceIn(0f, 1f)
-        val y = maxY * activeFloatingKeyboardYRatio.getValue().coerceIn(0f, 1f)
+        val bounds = floatingKeyboardBounds()
+        val x = bounds.xFromRatio(activeFloatingKeyboardXRatio.getValue())
+        val y = bounds.yFromRatio(activeFloatingKeyboardYRatio.getValue())
         updateFloatingKeyboardPosition(x, y)
     }
 
     private fun updateFloatingKeyboardPosition(x: Float, y: Float, persist: Boolean = false) {
         if (!floatingKeyboardEnabled) return
-        val maxX = max(0, floatingKeyboardAvailableWidthPx - keyboardView.width).toFloat()
-        val maxY = max(0, height - navBarBottomInset - keyboardView.height).toFloat()
-        floatingKeyboardX = min(max(x, 0f), maxX)
-        floatingKeyboardY = min(max(y, 0f), maxY)
+        val bounds = floatingKeyboardBounds()
+        floatingKeyboardX = bounds.clampX(x)
+        floatingKeyboardY = bounds.clampY(y)
         keyboardView.translationX = floatingKeyboardX
         keyboardView.translationY = floatingKeyboardY
         updatePreeditPosition()
@@ -1132,8 +1116,8 @@ class InputView(
         updateFloatingEditOverlaySize()
         updateFloatingEditOverlayPosition()
         if (persist) {
-            activeFloatingKeyboardXRatio.setValue(if (maxX > 0f) floatingKeyboardX / maxX else 0.5f)
-            activeFloatingKeyboardYRatio.setValue(if (maxY > 0f) floatingKeyboardY / maxY else 1f)
+            activeFloatingKeyboardXRatio.setValue(bounds.xRatio(floatingKeyboardX))
+            activeFloatingKeyboardYRatio.setValue(bounds.yRatio(floatingKeyboardY))
         }
         service.window.window?.decorView?.requestLayout()
     }
